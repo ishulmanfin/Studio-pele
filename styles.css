@@ -394,3 +394,22 @@ fieldset { border: 1px solid #e5d8c3; border-radius: 12px; padding: 12px 16px; d
 /* קריוקי: מיקרופון ענק באמצע למטה */
 .mic-btn.karaoke-mic { width: 150px; height: 150px; bottom: 30px; }
 @media (max-height: 460px) { .mic-btn.karaoke-mic { width: 96px; height: 96px; bottom: 12px; } }
+
+/* בלונים */
+.balloon { cursor: pointer; }
+.balloon.glow > ellipse:nth-of-type(1) { filter: drop-shadow(0 0 18px #fff) drop-shadow(0 0 30px #FFD23F); }
+.balloon-booth .bob { animation: bob 3.2s ease-in-out infinite; animation-delay: var(--d, 0s); transform-box: fill-box; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+@media (prefers-reduced-motion: reduce) { .balloon-booth .bob { animation: none; } }
+
+/* בום רעב */
+.feed-bum .squish-wrap { transition: transform .5s cubic-bezier(.34,1.56,.64,1); }
+.feed-bum.hungry .m-closed { opacity: 0; }
+.feed-bum.hungry .m-open { opacity: 1; animation: hungry-m .6s ease-in-out infinite alternate; }
+@keyframes hungry-m { from { transform: scale(1.5, 1.3); } to { transform: scale(1.9, 1.9); } }
+.feed-bum.no-no .actor-inner { animation: no-no .5s ease-in-out 1; }
+@keyframes no-no { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-7deg); } 45% { transform: rotate(7deg); } 70% { transform: rotate(-4deg); } }
+.feed-bum.burp .m-open { opacity: 1; animation: none; transform: scale(1.8, 2.2); }
+.feed-bum.burp .m-closed { opacity: 0; }
+.feed-bum.burp .actor-inner { animation: burp 1.2s cubic-bezier(.34,1.56,.64,1) 1; }
+@keyframes burp { 0% { transform: scale(1); } 25% { transform: scale(1.18, .86); } 55% { transform: scale(.94, 1.1); } 100% { transform: scale(1); } }

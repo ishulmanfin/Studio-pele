@@ -114,6 +114,16 @@ export function karaokeBooth() {
   </g>`;
 }
 
+/** צרור בלונים מרחף – הדלת למשחק הבלונים */
+export function balloonBunch() {
+  const B = [[-70, -250, '#FF4F8B'], [10, -300, '#FFD23F'], [85, -240, '#22D3A6'], [-10, -200, '#4FA3FF'], [60, -170, '#8B5CF6']];
+  return `<g class="booth balloon-booth">
+    ${B.map(([x, y]) => `<path d="M${x},${y + 62} C${x * 0.6},${y + 130} ${x * 0.2},-40 0,0" stroke="#fffaf0" stroke-width="4" opacity=".85" fill="none"/>`).join('')}
+    ${B.map(([x, y, c], i) => `<g class="bob" style="--d:${i * 0.4}s"><ellipse cx="${x}" cy="${y}" rx="52" ry="62" fill="${c}" stroke="${INK}" stroke-width="5"/><path d="M${x - 6},${y + 61} L${x + 6},${y + 61} L${x},${y + 72}Z" fill="${c}" stroke="${INK}" stroke-width="3"/><ellipse cx="${x - 20}" cy="${y - 26}" rx="9" ry="16" fill="#fff" opacity=".5" transform="rotate(-25 ${x - 20} ${y - 26})"/></g>`).join('')}
+    <circle r="12" fill="#FF8C42" stroke="${INK}" stroke-width="4"/>
+  </g>`;
+}
+
 /** תפאורה מכוסה בבד – פרק שעוד לא נפתח. לא מתחזה לתוכן מוכן. */
 export function coveredSet(icon, color) {
   return `<g class="booth covered">

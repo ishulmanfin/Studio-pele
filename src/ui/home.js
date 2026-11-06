@@ -1,7 +1,9 @@
 // מסך הבית: "הסטודיו של שייה ואלמה" – עולם חי, לא רשימת שיעורים.
 import { createStage, Abort } from '../engine/stage.js';
-import { studioSet, cafeBooth, bandBooth, sillyBooth, karaokeBooth, coveredSet, ICONS } from '../art/sets.js';
+import { studioSet, cafeBooth, bandBooth, sillyBooth, karaokeBooth, balloonBunch, coveredSet, ICONS } from '../art/sets.js';
 import { LINES as KL } from '../content/karaoke.js';
+import { LINES as BL } from '../content/balloons.js';
+import { LINES as FL } from '../content/feed.js';
 import { SYMBOLS } from '../art/puppets.js';
 import { sfx, unlockAudio, say as voiceSay, audioReady, stopSpeech } from '../engine/voice.js';
 // במסכי הבחירה: משפט חדש מחליף את הקודם, כדי שקולות לא ייכנסו אחד בשני
@@ -74,9 +76,11 @@ const TOUR = {
   band: 'הלהקה: מנגנים, עוצרים ושרים, באנגלית.',
   silly: 'טוטו טועה: טוטו אומר מילה, ומחליטים אם הוא צודק.',
   karaoke: KL.tour,
+  balloons: BL.tour,
+  feed: FL.tour,
   mic: 'ובמיקרופון: מדברים, וטוטו אומר את זה בקול שלו.',
 };
-const ENTER = { cafe: 'נכנסים לבית הקפה!', band: 'נכנסים ללהקה!', silly: 'נכנסים לטוטו טועה!', karaoke: KL.enter };
+const ENTER = { cafe: 'נכנסים לבית הקפה!', band: 'נכנסים ללהקה!', silly: 'נכנסים לטוטו טועה!', karaoke: KL.enter, balloons: BL.enter, feed: FL.enter };
 
 export function homeScreen(root, { players, onPlay, onBack, onParents, rest = false }) {
   const sisters = players.length > 1;
@@ -101,7 +105,8 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
     { id: 'band', tag: 'music', x: 905, scale: 0.84, html: () => bandBooth(store.creation(owner, 'band')) },
     { id: 'karaoke', tag: 'music', x: 1185, scale: 0.74, html: () => karaokeBooth(), always: true },
     { id: 'silly', tag: 'animals', x: 1420, scale: 0.68, html: () => sillyBooth(), always: true },
-  ].filter((s) => s.always || isPlayable(s.id)).map((s) => { const el = g(st.layers.back, s.html(), s.x, 790); el.classList.add(`${s.id}-door`, 'tappable'); el.setAttribute('transform', `translate(${s.x},790) scale(${s.scale || 1})`); return { ...s, el }; });
+    { id: 'balloons', tag: 'play', x: 1060, y: 420, scale: 0.8, html: () => balloonBunch(), always: true },
+  ].filter((s) => s.always || isPlayable(s.id)).map((s) => { const y = s.y || 790; const el = g(st.layers.back, s.html(), s.x, y); el.classList.add(`${s.id}-door`, 'tappable'); el.setAttribute('transform', `translate(${s.x},${y}) scale(${s.scale || 1})`); return { ...s, el }; });
 
   const mika = st.addActor('mika', 820, 930, { scale: 0.85 });
   const toto = st.addActor('toto', 1250, 960, { scale: 0.62, flip: true });
@@ -150,6 +155,7 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
     await st.say('mika', 'אלה המשחקים בסטודיו. נוגעים במשחק שרוצים.', 'he');
     const tour = [[booth, TOUR.cafe], ...sets.map((x) => [x.el, TOUR[x.id]])];
     for (const [el, line] of tour) { st.hand(el, { taps: 1 }); await st.say('mika', line, 'he'); }
+    st.hand(bum.el, { taps: 1 }); await st.say('mika', TOUR.feed, 'he');
     const mic = root.querySelector('.puppet-btn');
     if (mic && !mic.hidden) { st.hand(mic, { taps: 1 }); await st.say('mika', TOUR.mic, 'he'); }
   });
@@ -161,7 +167,7 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
   });
   for (const s of sets) s.el.addEventListener('pointerup', () => {
     // מקום פתוח – נכנסים מיד, גם אם מיקה עוד מדברת
-    if (!rest) { bump(s.tag); sfx.bell(); go(s.id, s.x, 600, s.el); return; }
+    if (!rest) { bump(s.tag); sfx.bell(); go(s.id, s.x, s.y ? s.y - 150 : 600, s.el); return; }
     once(async () => {
     bump(s.tag); sfx.boing();
     s.el.classList.remove('wiggle-set'); s.el.getBoundingClientRect(); s.el.classList.add('wiggle-set');
@@ -177,8 +183,13 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
     toto.anim('hop'); sfx.bark(); bump('animals');
     go('silly', 1400, 600, toto.el);
   });
+  // נגיעה בבום פותחת את "בום רעב" (במנוחה – רק תיפוף)
   let beat = 0;
-  bum.el.addEventListener('pointerup', () => { sfx.drum(beat++); bum.anim('bounce', 400); bump('music'); });
+  bum.el.classList.add('feed-door');
+  bum.el.addEventListener('pointerup', () => {
+    sfx.drum(beat++); bum.anim('bounce', 400); bump('food');
+    if (!rest) go('feed', 330, 700, bum.el);
+  });
 
   if (!rest && puppetAvailable()) setupPuppet(root, st, toto, pids);
   root.querySelector('.hud-back').addEventListener('pointerup', () => { st.destroy(); onBack(); });

@@ -4,6 +4,8 @@ import { runCafe } from './ui/cafe.js';
 import { runBand } from './ui/band.js';
 import { runSilly } from './ui/silly.js';
 import { runKaraoke } from './ui/karaoke.js';
+import { runBalloons } from './ui/balloons.js';
+import { runFeed } from './ui/feed.js';
 import { parentGate, parentArea } from './ui/parents.js';
 import { store } from './engine/store.js';
 import { loadVoiceManifest, unlockAudio } from './engine/voice.js';
@@ -25,7 +27,7 @@ function home() {
   homeScreen(app, { players, rest, onPlay: play, onBack: who, onParents: parents });
 }
 function play(place) {
-  const run = { cafe: runCafe, band: runBand, silly: runSilly, karaoke: runKaraoke }[place];
+  const run = { cafe: runCafe, band: runBand, silly: runSilly, karaoke: runKaraoke, balloons: runBalloons, feed: runFeed }[place];
   if (!run) return home();
   const fresh = players.map((p) => store.profile(p.id));
   run(app, { players: fresh }, ({ overTime }) => { rest = overTime; home(); });
