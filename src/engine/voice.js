@@ -57,7 +57,7 @@ export function unlockAudio() {
   try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch {}
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx.state !== 'running') audioCtx.resume();
   } catch {}
   // iOS: הקראה ראשונה חייבת לצאת ממגע
   try { if (synth && !unlockAudio.done) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; synth.speak(u); unlockAudio.done = true; } } catch {}
@@ -91,6 +91,8 @@ export async function loadVoiceManifest() {
   } catch {}
 }
 const bundles = new Map();
+let reloading = null;
+function reloadManifestSoon() { if (!reloading) reloading = loadVoiceManifest().finally(() => setTimeout(() => { reloading = null; }, 30000)); }
 const bundle = (f) => { if (!bundles.has(f)) bundles.set(f, fetch(`assets/voice/b/${f}`).then((r) => { if (!r.ok) throw new Error(f); return r.arrayBuffer(); }).catch((e) => { bundles.delete(f); throw e; })); return bundles.get(f); };
 async function getBuffer(file) {
   if (buffers.has(file)) return buffers.get(file);
@@ -107,6 +109,7 @@ export function preloadLines(keys) { if (!audioCtx) return; keys.forEach((k) => 
 let currentSrc = null;
 async function playRecorded(who, file) {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state !== 'running') { try { await Promise.race([audioCtx.resume(), new Promise((r) => setTimeout(r, 400))]); } catch {} }
   const buf = await getBuffer(file);
   return playBuffer(who, buf);
 }
@@ -141,7 +144,13 @@ export function say(who, text, lang = 'en', { slow = false } = {}) {
   const file = manifest[voiceKey(who, lang, text)];
   if (s.voice && file && !window.__FAST) {
     emit({ type: 'start', who, text, lang, recorded: true });
-    return playRecorded(who, file).catch(() => {}).finally(() => emit({ type: 'end', who, text, lang }));
+    const t0 = performance.now();
+    return playRecorded(who, file).catch(async () => {
+      // ההקלטה לא נטענה (רשת / גרסה ישנה): טוענים מחדש את רשימת הקולות, ובינתיים נותנים זמן לבועה – לא רצים הלאה
+      reloadManifestSoon();
+      const est = Math.max(1400, text.length * (lang === 'en' ? 90 : 75) + 500) - (performance.now() - t0);
+      if (est > 0) await new Promise((r) => setTimeout(r, est));
+    }).finally(() => emit({ type: 'end', who, text, lang }));
   }
   const parts = !file && splitLine(text, lang);
   if (s.voice && parts && !window.__FAST && parts.every((t) => manifest[voiceKey(who, lang, t)])) {

@@ -56,13 +56,16 @@ export async function runSilly(root, { players }, onDone) {
     for (const kid of players) rounds.push(...planFor(kid, sisters ? 3 : (kid.track === 'younger' ? 4 : 5)).map((r) => ({ ...r, kid })));
     const order = sisters ? interleave(rounds, players) : rounds;
     let caughtOnce = false;
+    let asked = 0;
     let first = !seen;
     for (const r of order) {
       if (sisters) { setTurn(r.kid.id); await st.say('mika', LINES.turnOf(r.kid.name), 'he'); }
       const pr = st.addProp(r.shown, 1000, 470, { scale: 0.2, layer: 'fx', id: `show-${r.shown}`, tappable: false });
       pr.fly(1000, 470, 1.15, 380); sfx.pop();
       toto.anim('wave', 700);
+      await st.wait(500);
       await st.say('toto', r.line, 'en', { prompt: true });
+      if (asked < 2) { asked++; await st.say('mika', LINES.introShort, 'he'); } // שתי הפעמים הראשונות מיקה שואלת בקול
       const t = await st.waitTap([{ el: yes.el, id: 'yes' }, { el: no.el, id: 'no' }], {
         demo: first ? [yes.el, no.el] : undefined, demoAt: 1500,
         hints: [{ at: 9000, run: async () => { await st.say('toto', r.line, 'en', { slow: true }); } }],
@@ -89,8 +92,9 @@ export async function runSilly(root, { players }, onDone) {
         toto.mood('happy'); await st.say('toto', r.line, 'en');
       }
       toto.mood('');
+      await st.wait(700);
       pr.remove();
-      await st.wait(300);
+      await st.wait(600);
     }
     yes.remove(); no.remove();
     setTurn(null);

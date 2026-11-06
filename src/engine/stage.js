@@ -53,9 +53,12 @@ export function createStage(root, { bg = '', width = 1600, height = 1000, entry 
         if (b) st.timer(lang === 'en' ? 1600 : 900, () => b.classList.add('fade'));
         if (b) st.timer(lang === 'en' ? 2100 : 1400, () => b.remove());
       }
+      // נשימה בין משפטים: ילדה בת 3 צריכה רגע לעכל לפני המשפט הבא
+      if (!window.__FAST && !silent) await new Promise((r) => setTimeout(r, lang === 'en' ? 550 : 700));
       st.check();
     }
 
+  let silent = false;
   const st = {
     svg, root, layers, actors,
     get alive() { return alive; },
@@ -67,7 +70,7 @@ export function createStage(root, { bg = '', width = 1600, height = 1000, entry 
     },
     wait(ms) {
       return new Promise((res, rej) => {
-        const t = setTimeout(() => { timers.delete(t); alive ? res() : rej(new Abort()); }, motionScale(ms));
+        const t = setTimeout(() => { timers.delete(t); alive ? res() : rej(new Abort()); }, window.__FAST ? motionScale(ms) : motionScale(ms) * PACE);
         timers.add(t);
       });
     },
@@ -145,6 +148,7 @@ export function createStage(root, { bg = '', width = 1600, height = 1000, entry 
     // דמויות לא מדברות אחת על השנייה: כל משפט מחכה שהקודם יסתיים
     say(who, text, lang = 'en', opts = {}) {
       st.check();
+      if (silent) return Promise.resolve(); // יוצאים מהמסך – לא מתחילים לדבר על משהו אחר
       const key = `${who}|${text}`;
       if (queued.has(key)) return queued.get(key); // אותו משפט כבר ממתין – לא חוזרים עליו פעמיים
       const g = gen;
@@ -154,6 +158,8 @@ export function createStage(root, { bg = '', width = 1600, height = 1000, entry 
       return run;
     },
     /** משתיקים את מה שנאמר ומבטלים משפטים שממתינים (למשל כשנכנסים למשחק) */
+    /** סוגרים את המסך לדיבור: כל משפט חדש מכאן והלאה לא יושמע (למשל אחרי "נכנסים ל...") */
+    closeSpeech() { silent = true; },
     hush() { gen++; queued.clear(); speechQ = Promise.resolve(); stopSpeech(); root.querySelectorAll('.bubble').forEach((b) => b.remove()); },
     async replay() {
       if (!lastPrompt) return;
@@ -407,3 +413,5 @@ export function createStage(root, { bg = '', width = 1600, height = 1000, entry 
 }
 
 export function motionScale(ms) { if (window.__FAST) return Math.min(ms, 30); return store.settings().reduceMotion ? Math.min(ms, 250) : ms; }
+/** קצב כללי איטי יותר להמתנות בין שלבים (ילדות קטנות) */
+export const PACE = 1.35;

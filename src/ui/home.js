@@ -3,7 +3,9 @@ import { createStage, Abort } from '../engine/stage.js';
 import { studioSet, cafeBooth, bandBooth, sillyBooth, karaokeBooth, coveredSet, ICONS } from '../art/sets.js';
 import { LINES as KL } from '../content/karaoke.js';
 import { SYMBOLS } from '../art/puppets.js';
-import { sfx, unlockAudio, say, audioReady } from '../engine/voice.js';
+import { sfx, unlockAudio, say as voiceSay, audioReady, stopSpeech } from '../engine/voice.js';
+// במסכי הבחירה: משפט חדש מחליף את הקודם, כדי שקולות לא ייכנסו אחד בשני
+const say = (...a) => { stopSpeech(); return voiceSay(...a); };
 import { store } from '../engine/store.js';
 import { isPlayable } from '../content/season.js';
 import { puppetAvailable, startCapture, playAsToto } from '../engine/puppet.js';
@@ -115,7 +117,9 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
     if (leaving) return; leaving = true;
     el?.classList.add('chosen-door');
     st.hush();
-    await st.say('mika', ENTER[place], 'he').catch(() => {});
+    const enter = st.say('mika', ENTER[place], 'he').catch(() => {});
+    st.closeSpeech(); // ברכות וסיור שעוד ממתינים לא ימשיכו לדבר מעל המשחק
+    await enter;
     if (!st.alive) return;
     await st.flyTo(x, y);
     if (!st.alive) return;

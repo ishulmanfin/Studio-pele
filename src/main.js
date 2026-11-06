@@ -6,7 +6,7 @@ import { runSilly } from './ui/silly.js';
 import { runKaraoke } from './ui/karaoke.js';
 import { parentGate, parentArea } from './ui/parents.js';
 import { store } from './engine/store.js';
-import { loadVoiceManifest } from './engine/voice.js';
+import { loadVoiceManifest, unlockAudio } from './engine/voice.js';
 import { siteGate } from './gate.js';
 loadVoiceManifest();
 
@@ -35,6 +35,9 @@ function parents() {
 }
 
 window.addEventListener('contextmenu', (e) => e.preventDefault());
+// אייפד: כל נגיעה "מעירה" את הסאונד (אחרי מעבר אפליקציה, נעילת מסך או שיחה הוא נרדם)
+for (const ev of ['pointerdown', 'touchend']) document.addEventListener(ev, () => unlockAudio(), { capture: true, passive: true });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) unlockAudio(); });
 // אייפד: ספארי מתעלם מ־user-scalable=no – ילדה שנוגעת בשתי אצבעות או בנגיעה כפולה מגדילה את המסך ו"נתקעת". חוסמים זום.
 for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
 document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 || (window.visualViewport && visualViewport.scale !== 1)) e.preventDefault(); }, { passive: false });
