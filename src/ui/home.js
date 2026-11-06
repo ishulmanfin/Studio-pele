@@ -1,6 +1,7 @@
 // מסך הבית: "הסטודיו של שייה ואלמה" – עולם חי, לא רשימת שיעורים.
 import { createStage, Abort } from '../engine/stage.js';
-import { studioSet, cafeBooth, bandBooth, sillyBooth, coveredSet, ICONS } from '../art/sets.js';
+import { studioSet, cafeBooth, bandBooth, sillyBooth, karaokeBooth, coveredSet, ICONS } from '../art/sets.js';
+import { LINES as KL } from '../content/karaoke.js';
 import { SYMBOLS } from '../art/puppets.js';
 import { sfx, unlockAudio, say, audioReady } from '../engine/voice.js';
 import { store } from '../engine/store.js';
@@ -70,9 +71,10 @@ const TOUR = {
   cafe: 'בית הקפה: מגישים לאורחים אוכל, באנגלית.',
   band: 'הלהקה: מנגנים, עוצרים ושרים, באנגלית.',
   silly: 'טוטו טועה: טוטו אומר מילה, ומחליטים אם הוא צודק.',
+  karaoke: KL.tour,
   mic: 'ובמיקרופון: מדברים, וטוטו אומר את זה בקול שלו.',
 };
-const ENTER = { cafe: 'נכנסים לבית הקפה!', band: 'נכנסים ללהקה!', silly: 'נכנסים לטוטו טועה!' };
+const ENTER = { cafe: 'נכנסים לבית הקפה!', band: 'נכנסים ללהקה!', silly: 'נכנסים לטוטו טועה!', karaoke: KL.enter };
 
 export function homeScreen(root, { players, onPlay, onBack, onParents, rest = false }) {
   const sisters = players.length > 1;
@@ -89,12 +91,14 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
   const phase = hour >= 19 || hour < 6 ? 'night' : hour >= 17 ? 'evening' : 'day';
   const grand = !sessionStorage.getItem('studio-entered'); sessionStorage.setItem('studio-entered', '1');
   const st = createStage(root.querySelector('.stage'), { bg: studioSet(phase), entry: grand ? 'grand' : 'settle' });
-  const booth = g(st.layers.back, cafeBooth(menu), 560, 790);
+  const booth = g(st.layers.back, cafeBooth(menu), 500, 790);
+  booth.setAttribute('transform', 'translate(500,790) scale(0.9)');
   booth.classList.add('tappable', 'cafe-door');
   // רק משחקים שאפשר לשחק בהם עכשיו מופיעים כדוכנים. מקומות שעוד בונים לא מוצגים, כדי לא לבלבל.
   const sets = [
-    { id: 'band', tag: 'music', x: 1040, html: () => bandBooth(store.creation(owner, 'band')) },
-    { id: 'silly', tag: 'animals', x: 1370, scale: 0.8, html: () => sillyBooth(), always: true },
+    { id: 'band', tag: 'music', x: 905, scale: 0.84, html: () => bandBooth(store.creation(owner, 'band')) },
+    { id: 'karaoke', tag: 'music', x: 1185, scale: 0.74, html: () => karaokeBooth(), always: true },
+    { id: 'silly', tag: 'animals', x: 1420, scale: 0.68, html: () => sillyBooth(), always: true },
   ].filter((s) => s.always || isPlayable(s.id)).map((s) => { const el = g(st.layers.back, s.html(), s.x, 790); el.classList.add(`${s.id}-door`, 'tappable'); el.setAttribute('transform', `translate(${s.x},790) scale(${s.scale || 1})`); return { ...s, el }; });
 
   const mika = st.addActor('mika', 820, 930, { scale: 0.85 });
@@ -149,7 +153,7 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
   booth.addEventListener('pointerup', () => {
     if (rest) return once(() => st.say('mika', 'בית הקפה סגור לנוח. להתראות!', 'he'));
     sfx.bell(); bump('food');
-    go('cafe', 560, 600, booth);
+    go('cafe', 500, 600, booth);
   });
   for (const s of sets) s.el.addEventListener('pointerup', () => {
     // מקום פתוח – נכנסים מיד, גם אם מיקה עוד מדברת

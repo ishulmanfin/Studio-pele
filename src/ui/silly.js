@@ -3,6 +3,7 @@
 // שיפוט כן/לא הוא 50% ניחוש, ולכן נרשם כראיה חלשה (כמו מסיח מצחיק) ולא מקדם לבד ל"הבנה בלי עזרה".
 import { createStage, Abort } from '../engine/stage.js';
 import { createFun } from '../engine/fun.js';
+import { HELP } from '../content/help.js';
 import { studioSet } from '../art/sets.js';
 import { sfx, unlockAudio } from '../engine/voice.js';
 import { store } from '../engine/store.js';
@@ -28,7 +29,7 @@ export async function runSilly(root, { players }, onDone) {
 
   hud.querySelector('.hud-replay').addEventListener('pointerup', () => st.replay().catch(() => {}));
   hud.querySelector('.hud-home').addEventListener('pointerup', () => {
-    const c = root.querySelector('.exit-confirm'); c.classList.add('show');
+    const c = root.querySelector('.exit-confirm'); c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
     c.querySelector('.no').onpointerup = () => c.classList.remove('show');
   });

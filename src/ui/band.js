@@ -3,6 +3,7 @@
 // שייה: מנצחת – מבינה "Bum, play fast!", כותבת שיר, ונותנת הוראה בעצמה.
 import { createStage, Abort } from '../engine/stage.js';
 import { createFun } from '../engine/fun.js';
+import { HELP } from '../content/help.js';
 import { bandSet, stageCurtain } from '../art/sets.js';
 import { sfx, unlockAudio } from '../engine/voice.js';
 import { store } from '../engine/store.js';
@@ -63,7 +64,7 @@ export async function runBand(root, { players }, onDone) {
   hud.querySelector('.hud-home').addEventListener('pointerup', () => confirmExit());
   function confirmExit() {
     const c = root.querySelector('.exit-confirm');
-    c.classList.add('show');
+    c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
     c.querySelector('.no').onpointerup = () => c.classList.remove('show');
   }

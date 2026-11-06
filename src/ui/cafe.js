@@ -1,6 +1,7 @@
 // מריץ הפרק "בית הקפה המצחיק" – שלוש גרסאות: אלמה (younger), שייה (older), אחיות.
 import { createStage, Abort } from '../engine/stage.js';
 import { createFun } from '../engine/fun.js';
+import { HELP } from '../content/help.js';
 import { cafeSet, table, shutter } from '../art/sets.js';
 import { prop, SYMBOLS } from '../art/puppets.js';
 import { sfx, unlockAudio } from '../engine/voice.js';
@@ -54,7 +55,7 @@ export async function runCafe(root, { players }, onDone) {
   hud.querySelector('.hud-home').addEventListener('pointerup', () => confirmExit());
   function confirmExit() {
     const c = root.querySelector('.exit-confirm');
-    c.classList.add('show');
+    c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
     c.querySelector('.no').onpointerup = () => c.classList.remove('show');
   }

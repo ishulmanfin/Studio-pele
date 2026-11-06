@@ -94,6 +94,26 @@ export function sillyBooth() {
   </g>`;
 }
 
+
+/** דוכן הקריוקי: במה קטנה עם מיקרופון גדול, תווים ואורות */
+export function karaokeBooth() {
+  return `<g class="booth karaoke-booth">
+    <rect x="-160" y="-320" width="320" height="320" rx="18" fill="#7B5CFF" stroke="${INK}" stroke-width="5"/>
+    <path d="M-180,-320 H180 L160,-262 H-160Z" fill="#FF4F8B" stroke="${INK}" stroke-width="5"/>
+    ${[-135, -81, -27, 27, 81, 135].map((x, i) => `<circle cx="${x}" cy="-291" r="8" fill="${['#FFD23F', '#fff', '#22D3A6'][i % 3]}" stroke="${INK}" stroke-width="3" class="twinkle" style="--d:${i * 0.25}s"/>`).join('')}
+    <circle cx="0" cy="-150" r="96" fill="#FFD23F" opacity=".35"/>
+    <g transform="translate(0,-150) rotate(-18)">
+      <rect x="-30" y="-12" width="60" height="120" rx="14" fill="#2A1A5E"/>
+      <circle cy="-40" r="52" fill="#E5383B" stroke="${INK}" stroke-width="6"/>
+      <path d="M-30,-58 H30 M-36,-40 H36 M-30,-22 H30" stroke="#FFB3BC" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <g fill="#FFD23F" stroke="${INK}" stroke-width="4"><circle cx="-110" cy="-210" r="14"/><path d="M-96,-210 V-262 L-70,-252" fill="none" stroke-width="6"/>
+      <circle cx="104" cy="-100" r="14"/><path d="M118,-100 V-152 L144,-142" fill="none" stroke-width="6"/></g>
+    <rect x="-160" y="-30" width="320" height="30" fill="#FF8C42" stroke="${INK}" stroke-width="5"/>
+    <text x="0" y="-337" text-anchor="middle" font-size="40" font-weight="700" fill="${INK}" font-family="Fredoka, sans-serif" class="booth-title">Karaoke</text>
+  </g>`;
+}
+
 /** תפאורה מכוסה בבד – פרק שעוד לא נפתח. לא מתחזה לתוכן מוכן. */
 export function coveredSet(icon, color) {
   return `<g class="booth covered">

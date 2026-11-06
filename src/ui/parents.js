@@ -1,3 +1,5 @@
+import { HELP } from '../content/help.js';
+import { say as helpSay } from '../engine/voice.js';
 // אזור הורים: שער, סיכום מבוסס ראיות, הגדרות, פרופילים ומחיקת נתונים.
 import { store } from '../engine/store.js';
 import * as P from '../engine/progress.js';
@@ -20,12 +22,13 @@ export function parentGate(root, { onPass, onCancel }) {
       <p>כדי להיכנס, בחרו את התשובה:</p>
       <p class="gate-q">כמה זה ${numHe(a)} ועוד ${numHe(b)}?</p>
       <div class="gate-opts">${opts.map((o) => `<button data-v="${o}">${o}</button>`).join('')}</div>
-      <button class="gate-cancel">חזרה לסטודיו</button>
+      <button class="gate-cancel" aria-label="חזרה לסטודיו"><svg viewBox="-50 -50 100 100"><path d="M30,0 H-24 M-4,-22 L-26,0 L-4,22" fill="none" stroke="#2A1A5E" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>חזרה לסטודיו</button>
     </div></div>`;
   root.querySelectorAll('.gate-opts button').forEach((btn) => btn.addEventListener('click', () => {
     if (+btn.dataset.v === ans) onPass(); else onCancel();
   }));
   root.querySelector('.gate-cancel').addEventListener('click', onCancel);
+  helpSay('mika', HELP.parents, 'he');
 }
 
 const NUM = ['אפס', 'אחת', 'שתיים', 'שלוש', 'ארבע', 'חמש', 'שש', 'שבע', 'שמונה', 'תשע', 'עשר', 'אחת־עשרה', 'שתים־עשרה', 'שלוש־עשרה', 'ארבע־עשרה', 'חמש־עשרה', 'שש־עשרה', 'שבע־עשרה', 'שמונה־עשרה', 'תשע־עשרה'];

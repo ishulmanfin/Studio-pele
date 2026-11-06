@@ -2,6 +2,7 @@
 import { CAST, prop as drawProp } from '../art/puppets.js';
 import { say as voiceSay, onSpeak, sfx, stopSpeech, listen, micAvailable } from './voice.js';
 import { store } from './store.js';
+import { HELP } from '../content/help.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 export class Abort extends Error {}
@@ -266,6 +267,7 @@ export function createStage(root, { bg = '', width = 1600, height = 1000, entry 
       if (!btn) return () => {};
       let alive = true; let busy = false;
       btn.classList.add('show', 'beckon-btn');
+      if (!sessionStorage.getItem('mic-explained')) { sessionStorage.setItem('mic-explained', '1'); st.say('mika', HELP.mic, 'he').catch(() => {}); st.hand?.(btn, { taps: 2 }); }
       const go = async () => {
         if (busy || !alive) return; busy = true;
         btn.classList.remove('beckon-btn');

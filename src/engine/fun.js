@@ -1,6 +1,7 @@
 // שכבת "כיף" משותפת לכל המשחקים: צנצנת כוכבים שמתמלאת, קונפטי בכל הצלחה, מוזיקת רקע עליזה
 // שמתרככת כשמישהו מדבר, וחגיגה גדולה בסוף. לא דורשת הקלטות חדשות.
-import { onSpeak, audioContext, sfx } from './voice.js';
+import { onSpeak, audioContext, sfx, say } from './voice.js';
+import { HELP } from '../content/help.js';
 import { onProgress } from './progress.js';
 import { store } from './store.js';
 
@@ -13,6 +14,7 @@ export function createFun(root, { music = true } = {}) {
   const jar = document.createElement('div'); jar.className = 'star-jar';
   jar.innerHTML = `<div class="jar-star">${STAR()}</div><span class="jar-count">0</span>`;
   root.appendChild(layer); root.appendChild(jar);
+  jar.addEventListener('pointerup', () => { jar.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.2)' }, { transform: 'scale(1)' }], { duration: 300 }); say('mika', HELP.stars, 'he'); });
   let stars = 0; let alive = true;
   let last = { x: innerWidth / 2, y: innerHeight / 2 };
   const track = (e) => { last = { x: e.clientX, y: e.clientY }; };
