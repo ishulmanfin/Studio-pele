@@ -4,7 +4,8 @@ import { studioSet, cafeBooth, bandBooth, sillyBooth, karaokeBooth, balloonBunch
 import { LINES as KL } from '../content/karaoke.js';
 import { LINES as BL } from '../content/balloons.js';
 import { LINES as FL } from '../content/feed.js';
-import { SYMBOLS } from '../art/puppets.js';
+import { SYMBOLS, prop as drawProp } from '../art/puppets.js';
+import { LINES as AL } from '../content/animals.js';
 import { sfx, unlockAudio, say as voiceSay, audioReady, stopSpeech } from '../engine/voice.js';
 // במסכי הבחירה: משפט חדש מחליף את הקודם, כדי שקולות לא ייכנסו אחד בשני
 const say = (...a) => { stopSpeech(); return voiceSay(...a); };
@@ -78,9 +79,10 @@ const TOUR = {
   karaoke: KL.tour,
   balloons: BL.tour,
   feed: FL.tour,
+  animals: AL.tour,
   mic: 'ובמיקרופון: מדברים, וטוטו אומר את זה בקול שלו.',
 };
-const ENTER = { cafe: 'נכנסים לבית הקפה!', band: 'נכנסים ללהקה!', silly: 'נכנסים לטוטו טועה!', karaoke: KL.enter, balloons: BL.enter, feed: FL.enter };
+const ENTER = { cafe: 'נכנסים לבית הקפה!', band: 'נכנסים ללהקה!', silly: 'נכנסים לטוטו טועה!', karaoke: KL.enter, balloons: BL.enter, feed: FL.enter, animals: AL.enter };
 
 export function homeScreen(root, { players, onPlay, onBack, onParents, rest = false }) {
   const sisters = players.length > 1;
@@ -105,6 +107,7 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
     { id: 'band', tag: 'music', x: 905, scale: 0.84, html: () => bandBooth(store.creation(owner, 'band')) },
     { id: 'karaoke', tag: 'music', x: 1185, scale: 0.74, html: () => karaokeBooth(), always: true },
     { id: 'silly', tag: 'animals', x: 1420, scale: 0.68, html: () => sillyBooth(), always: true },
+    { id: 'animals', tag: 'animals', x: 700, y: 330, scale: 0.85, html: () => animalCloud(), always: true },
     { id: 'balloons', tag: 'play', x: 1060, y: 420, scale: 0.8, html: () => balloonBunch(), always: true },
   ].filter((s) => s.always || isPlayable(s.id)).map((s) => { const y = s.y || 790; const el = g(st.layers.back, s.html(), s.x, y); el.classList.add(`${s.id}-door`, 'tappable'); el.setAttribute('transform', `translate(${s.x},${y}) scale(${s.scale || 1})`); return { ...s, el }; });
 
@@ -195,6 +198,17 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
   root.querySelector('.hud-back').addEventListener('pointerup', () => { st.destroy(); onBack(); });
   root.querySelector('.parent-door').addEventListener('pointerup', () => { st.destroy(); onParents(); });
   return st;
+}
+
+/** ענן חיות מרחף – הדלת ל"עולם החיות" */
+function animalCloud() {
+  return `<g class="booth animal-cloud">
+    <g fill="#fff" stroke="#2A1A5E" stroke-width="5"><ellipse cx="0" cy="40" rx="190" ry="56"/><circle cx="-110" cy="20" r="50"/><circle cx="110" cy="22" r="46"/></g>
+    <ellipse cx="0" cy="40" rx="186" ry="52" fill="#fff"/><circle cx="-110" cy="20" r="46" fill="#fff"/><circle cx="110" cy="22" r="42" fill="#fff"/>
+    <g class="bob" style="--d:0s"><g transform="translate(-105,-30) scale(.85)">${drawProp('cow')}</g></g>
+    <g class="bob" style="--d:.5s"><g transform="translate(0,-55) scale(.95)">${drawProp('lion')}</g></g>
+    <g class="bob" style="--d:1s"><g transform="translate(105,-28) scale(.85)">${drawProp('duck')}</g></g>
+  </g>`;
 }
 
 function g(parent, html, x, y) {

@@ -117,13 +117,13 @@ export async function runBalloons(root, { players }, onDone) {
       const younger = kid.track === 'younger';
       if (sisters) { setTurn(kid.id); await st.say('mika', BANDL.mika.turnOf(kid.name), 'he'); }
       const target = words[i];
-      const n = younger ? (i < 2 ? 2 : 3) : 4;
+      const n = younger ? 3 : (i < 2 ? 4 : 5); // אלמה מפותחת לגילה – 3 מההתחלה; שייה – 4-5
       const pool = shuffle(words.filter((w) => w !== target)).slice(0, n - 1);
       const set = shuffle([target, ...pool]);
-      speed = younger ? 0.75 : 1.1;
-      const span = 820 / set.length;
-      const bs = set.map((w, k) => makeBalloon(w, 380 + span * (k + 0.5), { y: 980 + (k % 2) * 90, vy: 60 + Math.random() * 20 }));
-      speed = 4; await st.wait(700); speed = younger ? 0.75 : 1.1; // הבלונים ממריאים לגובה העיניים
+      speed = younger ? 0.85 : 1.3;
+      const span = (set.length > 4 ? 920 : 820) / set.length;
+      const bs = set.map((w, k) => makeBalloon(w, (set.length > 4 ? 330 : 380) + span * (k + 0.5), { y: 980 + (k % 2) * 90, vy: 60 + Math.random() * 20 }));
+      speed = 4; await st.wait(700); speed = younger ? 0.85 : 1.3; // הבלונים ממריאים לגובה העיניים
       P.exposed(kid.id, target, 'balloons');
       let wrongs = 0; let help = 0; let asked = false;
       const tb = bs.find((b) => b.word === target);

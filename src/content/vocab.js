@@ -24,6 +24,17 @@ export const VOCAB = {
   s_play:     { en: '… , play fast / slowly!', he: 'הוראה לנגן: מי ובאיזה קצב', kind: 'structure', intro: 'band' },
   s_everybody:{ en: 'Everybody, stop!', he: 'הוראה לכולם (כמה תשובות נכונות)', kind: 'structure', intro: 'band' },
   s_letssing: { en: "Let's sing!", he: 'בואו נשיר', kind: 'structure', intro: 'band' },
+  // חיות – "עולם החיות"
+  cow:     { en: 'cow',    he: 'פרה',       kind: 'word', intro: 'animals', art: 'cow',   group: 'animal' },
+  dog:     { en: 'dog',    he: 'כלב',       kind: 'word', intro: 'animals', art: 'dog',   group: 'animal' },
+  cat:     { en: 'cat',    he: 'חתול',      kind: 'word', intro: 'animals', art: 'cat',   group: 'animal' },
+  duck:    { en: 'duck',   he: 'ברווז',     kind: 'word', intro: 'animals', art: 'duck',  group: 'animal' },
+  lion:    { en: 'lion',   he: 'אריה',      kind: 'word', intro: 'animals', art: 'lion',  group: 'animal' },
+  fish:    { en: 'fish',   he: 'דג',        kind: 'word', intro: 'animals', art: 'fish',  group: 'animal' },
+  bird:    { en: 'bird',   he: 'ציפור',     kind: 'word', intro: 'animals', art: 'bird',  group: 'animal' },
+  frog:    { en: 'frog',   he: 'צפרדע',     kind: 'word', intro: 'animals', art: 'frog',  group: 'animal' },
+  horse:   { en: 'horse',  he: 'סוס',       kind: 'word', intro: 'animals', art: 'horse', group: 'animal' },
+  sheep:   { en: 'sheep',  he: 'כבשה',      kind: 'word', intro: 'animals', art: 'sheep', group: 'animal' },
 };
 
 // צלילי אותיות (לשייה): צליל פותח של מילה מוכרת. סדר האותיות לפי שלב 2 של Letters and Sounds

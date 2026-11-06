@@ -126,6 +126,12 @@ Object.values(BLN).forEach((t) => add('mika', 'he', t));
 import { LINES as FDL } from '../../src/content/feed.js';
 Object.values(FDL).forEach((t) => add('mika', 'he', t));
 for (const w of items) add('mika', 'en', `${cap(VOCAB[w].en)}!`);
+// עולם החיות
+import { LINES as ANL, QUESTIONS as ANQ, FACTS as ANF, ANIMAL_IDS } from '../../src/content/animals.js';
+Object.values(ANL).forEach((t) => add('mika', 'he', t));
+ANQ.forEach((q) => add('mika', 'he', q.text));
+Object.values(ANF).forEach((t) => add('mika', 'he', t));
+ANIMAL_IDS.forEach((a) => add('mika', 'en', `${cap(VOCAB[a].en)}!`));
 
 const saidFile = new URL('./said.json', import.meta.url);
 if (fs.existsSync(saidFile)) JSON.parse(fs.readFileSync(saidFile, 'utf8')).forEach((k) => { const [w, l, ...t] = k.split('|'); add(w, l, t.join('|')); });
@@ -137,3 +143,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   for (const l of ALL_LINES) { by[l.who] = (by[l.who] || 0) + 1; chars += l.text.length; }
   console.log({ lines: ALL_LINES.length, chars, byCharacter: by });
 }
+

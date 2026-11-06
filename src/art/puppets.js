@@ -163,7 +163,73 @@ export const CAST = { mika, toto, bum, lulu, owl };
 
 // ---------- אביזרים ----------
 let uid = 0;
+
+// ---------- חיות (משחק "עולם החיות") ----------
+const ae = (x, y, r = 9) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${INK}" stroke-width="2.5"/><circle cx="${x + 1}" cy="${y + 1}" r="${r * 0.55}" fill="${INK}"/><circle cx="${x + 3}" cy="${y - 2}" r="${r * 0.2}" fill="#fff"/>`;
+const blush = (x, y) => `<ellipse cx="${x}" cy="${y}" rx="8" ry="5" fill="#FF7A9C" opacity=".55"/>`;
+const ANIMALS = {
+  cow: () => `<path d="M-46,-40 C-60,-62 -54,-74 -44,-70 M46,-40 C60,-62 54,-74 44,-70" stroke="${INK}" stroke-width="10" stroke-linecap="round" fill="none"/>
+    <path d="M-46,-40 C-60,-62 -54,-74 -44,-70 M46,-40 C60,-62 54,-74 44,-70" stroke="#F3E3C3" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <ellipse cx="-62" cy="-22" rx="20" ry="11" fill="#fff" stroke="${INK}" stroke-width="3.5" transform="rotate(-20 -62 -22)"/><ellipse cx="62" cy="-22" rx="20" ry="11" fill="#fff" stroke="${INK}" stroke-width="3.5" transform="rotate(20 62 -22)"/>
+    <path d="M-48,-30 C-50,-62 50,-62 48,-30 C52,0 46,40 0,44 C-46,40 -52,0 -48,-30Z" fill="#fff" stroke="${INK}" stroke-width="4"/>
+    <path d="M-48,-30 C-44,-50 -20,-56 -14,-44 C-10,-28 -34,-16 -46,-14Z" fill="${INK}"/><path d="M30,-2 C40,-8 50,0 47,12 C40,16 30,10 30,-2Z" fill="${INK}"/>
+    <ellipse cy="26" rx="38" ry="24" fill="#FFB3BC" stroke="${INK}" stroke-width="4"/><ellipse cx="-13" cy="26" rx="5" ry="7" fill="${INK}"/><ellipse cx="13" cy="26" rx="5" ry="7" fill="${INK}"/>
+    ${ae(-20, -18, 10)}${ae(20, -18, 10)}`,
+  dog: () => `<path d="M-40,-46 C-74,-50 -80,0 -62,22 C-50,30 -40,10 -38,-10Z" fill="#8B5A2B" stroke="${INK}" stroke-width="4"/><path d="M40,-46 C74,-50 80,0 62,22 C50,30 40,10 38,-10Z" fill="#8B5A2B" stroke="${INK}" stroke-width="4"/>
+    <path d="M-44,-20 C-46,-60 46,-60 44,-20 C48,20 30,48 0,48 C-30,48 -48,20 -44,-20Z" fill="#E8B57A" stroke="${INK}" stroke-width="4"/>
+    <ellipse cx="22" cy="-22" rx="14" ry="16" fill="#8B5A2B" opacity=".7"/>
+    <ellipse cy="18" rx="24" ry="18" fill="#FFF1DC"/><ellipse cy="8" rx="11" ry="8" fill="${INK}"/><path d="M0,16 V24 M-10,28 C-4,34 4,34 10,28" stroke="${INK}" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <path d="M-6,32 C-6,46 6,46 6,32Z" fill="#FF6B8A" stroke="${INK}" stroke-width="2.5"/>${ae(-18, -14)}${ae(20, -14)}`,
+  cat: () => `<path d="M-46,-14 L-50,-66 L-14,-42Z M46,-14 L50,-66 L14,-42Z" fill="#FF9F43" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/><path d="M-42,-26 L-44,-54 L-24,-40Z M42,-26 L44,-54 L24,-40Z" fill="#FFB3BC"/>
+    <ellipse cy="0" rx="52" ry="44" fill="#FF9F43" stroke="${INK}" stroke-width="4"/>
+    <path d="M-10,-42 l4,14 M0,-44 v14 M10,-42 l-4,14" stroke="#D9711C" stroke-width="5" stroke-linecap="round"/>
+    ${ae(-20, -6, 10)}${ae(20, -6, 10)}<path d="M-6,10 L6,10 L0,17Z" fill="#FF6B8A" stroke="${INK}" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M0,17 C-4,24 -12,24 -14,20 M0,17 C4,24 12,24 14,20" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M-24,14 H-62 M-24,20 L-58,28 M24,14 H62 M24,20 L58,28" stroke="${INK}" stroke-width="2.5" stroke-linecap="round"/>${blush(-34, 12)}${blush(34, 12)}`,
+  duck: () => `<path d="M-50,10 C-60,50 40,58 56,20 C62,4 48,-6 34,4 C10,18 -20,0 -50,10Z" fill="#FFD23F" stroke="${INK}" stroke-width="4"/>
+    <path d="M-30,18 C-14,34 10,34 20,20" stroke="#E8A800" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <circle cx="-26" cy="-26" r="30" fill="#FFD23F" stroke="${INK}" stroke-width="4"/>
+    <path d="M-56,-24 C-80,-30 -84,-12 -70,-8 C-62,-6 -56,-12 -52,-14Z" fill="#FF8C42" stroke="${INK}" stroke-width="3.5" stroke-linejoin="round"/>
+    ${ae(-30, -32, 8)}${blush(-14, -16)}<path d="M-30,-56 C-26,-66 -18,-64 -16,-56" stroke="${INK}" stroke-width="3" fill="none"/>`,
+  lion: () => `<g fill="#D9711C" stroke="${INK}" stroke-width="4">${Array.from({ length: 12 }, (_, i) => { const a = (i / 12) * Math.PI * 2; return `<circle cx="${(Math.cos(a) * 46).toFixed(1)}" cy="${(Math.sin(a) * 46).toFixed(1)}" r="22"/>`; }).join('')}</g>
+    <circle r="48" fill="#D9711C"/>
+    <circle cx="-30" cy="-34" r="11" fill="#FFC94D" stroke="${INK}" stroke-width="3"/><circle cx="30" cy="-34" r="11" fill="#FFC94D" stroke="${INK}" stroke-width="3"/>
+    <circle r="40" fill="#FFC94D" stroke="${INK}" stroke-width="4"/>
+    ${ae(-15, -10, 9)}${ae(15, -10, 9)}<ellipse cy="14" rx="18" ry="13" fill="#FFF1DC"/><path d="M-8,6 L8,6 L0,14Z" fill="${INK}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M0,14 V20 M-10,22 C-4,28 4,28 10,22" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>${blush(-26, 10)}${blush(26, 10)}`,
+  fish: () => `<path d="M40,0 L70,-30 C74,-10 74,10 70,30Z" fill="#FF8C42" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M-62,0 C-50,-40 20,-46 46,0 C20,46 -50,40 -62,0Z" fill="#4FA3FF" stroke="${INK}" stroke-width="4"/>
+    <path d="M-10,-34 C0,-52 20,-50 24,-30" fill="#FF8C42" stroke="${INK}" stroke-width="3.5"/>
+    <path d="M-6,-24 C4,-8 4,8 -6,24 M10,-26 C20,-8 20,8 10,26" stroke="#9FD0FF" stroke-width="5" fill="none" stroke-linecap="round"/>
+    ${ae(-36, -6, 9)}<path d="M-58,8 C-54,14 -48,14 -46,10" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <g fill="#B8F0FF" stroke="${INK}" stroke-width="2"><circle cx="-70" cy="-30" r="6"/><circle cx="-62" cy="-48" r="4"/></g>`,
+  bird: () => `<path d="M-30,46 l-4,14 M-14,48 l0,14" stroke="#FF8C42" stroke-width="5" stroke-linecap="round"/>
+    <path d="M30,0 L66,-14 L58,10Z" fill="#4FA3FF" stroke="${INK}" stroke-width="3.5" stroke-linejoin="round"/>
+    <ellipse cx="-6" cy="4" rx="48" ry="44" fill="#4FA3FF" stroke="${INK}" stroke-width="4"/>
+    <ellipse cx="-12" cy="22" rx="28" ry="20" fill="#B8E2FF"/>
+    <path d="M6,-2 C30,-6 40,20 18,30 C8,24 4,10 6,-2Z" fill="#2D7DD2" stroke="${INK}" stroke-width="3"/>
+    <path d="M-6,-40 C-4,-56 8,-58 10,-46 M-6,-40 C-14,-54 -24,-50 -20,-40" stroke="${INK}" stroke-width="3" fill="#4FA3FF"/>
+    ${ae(-22, -12, 9)}<path d="M-50,-4 L-68,2 L-50,10Z" fill="#FFD23F" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>${blush(-30, 6)}`,
+  frog: () => `<ellipse cy="14" rx="58" ry="38" fill="#4CC66B" stroke="${INK}" stroke-width="4"/>
+    <circle cx="-28" cy="-24" r="22" fill="#4CC66B" stroke="${INK}" stroke-width="4"/><circle cx="28" cy="-24" r="22" fill="#4CC66B" stroke="${INK}" stroke-width="4"/>
+    ${ae(-28, -26, 13)}${ae(28, -26, 13)}
+    <path d="M-34,14 C-20,34 20,34 34,14" stroke="${INK}" stroke-width="4" fill="none" stroke-linecap="round"/>
+    ${blush(-40, 8)}${blush(40, 8)}<g fill="#2E9E4F"><circle cx="-20" cy="36" r="5"/><circle cx="16" cy="40" r="4"/><circle cx="40" cy="30" r="3"/></g>`,
+  horse: () => `<path d="M-20,-50 L-12,-72 L0,-52 M14,-50 L22,-72 L30,-50" fill="#B5733A" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M-28,-44 C-6,-60 30,-58 36,-34 C40,-10 36,20 26,44 C18,60 -20,60 -24,44 C-30,20 -40,-30 -28,-44Z" fill="#C98B4E" stroke="${INK}" stroke-width="4"/>
+    <path d="M-30,-48 C-44,-30 -46,0 -40,24 C-52,0 -54,-40 -30,-48Z M-20,-56 C-30,-66 -10,-70 -4,-58" fill="#5A3825" stroke="${INK}" stroke-width="3"/>
+    <ellipse cx="2" cy="40" rx="30" ry="20" fill="#E8C49A" stroke="${INK}" stroke-width="3.5"/><ellipse cx="-8" cy="40" rx="4" ry="6" fill="${INK}"/><ellipse cx="12" cy="40" rx="4" ry="6" fill="${INK}"/>
+    ${ae(-10, -16, 9)}${ae(22, -16, 9)}<path d="M2,-36 l0,12" stroke="#fff" stroke-width="10" stroke-linecap="round"/>`,
+  sheep: () => `<g fill="#fff" stroke="${INK}" stroke-width="3.5">${[[-40, -20], [-20, -44], [10, -48], [38, -30], [50, 0], [40, 30], [10, 44], [-22, 42], [-48, 18]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="24"/>`).join('')}</g>
+    <circle r="46" fill="#fff"/>
+    <ellipse cx="-36" cy="-4" rx="16" ry="9" fill="#5A4A6E" stroke="${INK}" stroke-width="3" transform="rotate(25 -36 -4)"/><ellipse cx="36" cy="-4" rx="16" ry="9" fill="#5A4A6E" stroke="${INK}" stroke-width="3" transform="rotate(-25 36 -4)"/>
+    <ellipse cy="6" rx="26" ry="32" fill="#5A4A6E" stroke="${INK}" stroke-width="4"/>
+    <g fill="#fff" stroke="${INK}" stroke-width="3"><circle cx="-12" cy="-26" r="10"/><circle cx="4" cy="-30" r="11"/><circle cx="16" cy="-24" r="9"/></g>
+    ${ae(-10, 0, 8)}${ae(10, 0, 8)}<path d="M-6,20 C-2,26 2,26 6,20" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>${blush(-16, 14)}${blush(16, 14)}`,
+};
+
 export function prop(id, opts = {}) {
+  if (ANIMALS[id]) return `<g class="prop animal ${id}">${ANIMALS[id]()}</g>`;
   const k = ++uid;
   switch (id) {
     case 'apple': return `<g class="prop apple">

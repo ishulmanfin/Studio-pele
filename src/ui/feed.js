@@ -81,7 +81,7 @@ export async function runFeed(root, { players }, onDone) {
       const younger = kid.track === 'younger';
       if (sisters) { setTurn(kid.id); await st.say('mika', BANDL.mika.turnOf(kid.name), 'he'); }
       const target = words[i];
-      const n = younger ? (i < 2 ? 2 : 3) : (i < 1 ? 3 : 4);
+      const n = younger ? 3 : 4;
       const others = shuffle(FOODS.filter((w) => w !== target && VOCAB[w])).slice(0, n - 1);
       const set = shuffle([target, ...others]);
       const span = 460 / set.length;
