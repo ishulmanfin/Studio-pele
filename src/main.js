@@ -6,6 +6,7 @@ import { runSilly } from './ui/silly.js';
 import { parentGate, parentArea } from './ui/parents.js';
 import { store } from './engine/store.js';
 import { loadVoiceManifest } from './engine/voice.js';
+import { siteGate } from './gate.js';
 loadVoiceManifest();
 
 const app = document.getElementById('app');
@@ -37,4 +38,4 @@ document.addEventListener('gesturestart', (e) => e.preventDefault());
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
-who();
+siteGate(app, who);
