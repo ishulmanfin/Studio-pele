@@ -109,7 +109,7 @@ export async function runFeed(root, { players }, onDone) {
           if (!pr.el.classList.contains('armed')) return;
           sfx.boing(); pr.wiggle();
           if (!asked) return; // לפני שמיקה אמרה את המילה – רק קפיצה קטנה
-          wrongs++;
+          wrongs++; if (wrongs >= 2) { help = Math.max(help, 2); tp.pulse(true); } // אחרי שתי נגיעות – רמז ברור
           bum.el.classList.remove('no-no'); bum.el.getBoundingClientRect(); bum.el.classList.add('no-no');
           st.hush();
           (async () => { if (wrongs === 1) await st.say('mika', LINES.notThat, 'he'); await st.say('mika', `${cap(VOCAB[target].en)}!`, 'en'); })().catch(() => {});
@@ -125,7 +125,7 @@ export async function runFeed(root, { players }, onDone) {
       await picked.fly(mx, my, 0.15, 520);
       picked.remove(); sfx.chomp(); bum.anim('bounce', 700);
       bumScale = Math.min(1.6, bumScale + 0.05); bum.el.querySelector('.squish-wrap').style.transform = `scale(${(bumScale / 1.25).toFixed(3)})`;
-      const r = bum.el.getBoundingClientRect(); fun.win(r.left + r.width / 2, r.top + r.height * 0.35);
+      const r = bum.el.getBoundingClientRect(); fun.burst(r.left + r.width / 2, r.top + r.height * 0.35);
       P.choice(kid.id, target, { correct: wrongs === 0, help, distractor: 'real', context: 'feed' });
       if (wrongs) P.choice(kid.id, target, { correct: true, help: Math.max(1, help), context: 'feed' });
       store.bumpInterest(kid.id, 'feed');

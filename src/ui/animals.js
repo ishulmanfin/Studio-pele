@@ -105,7 +105,7 @@ export async function runAnimals(root, { players }, onDone) {
           if (set[k] === r.target) { stops.forEach((s) => s()); cards.forEach((q) => q.el.classList.remove('armed')); resolve(pr); return; }
           sfx.boing(); pr.wiggle();
           if (!asked) return;
-          wrongs++;
+          wrongs++; if (wrongs >= 2) { help = Math.max(help, 2); tp.pulse(true); } // אחרי שתי נגיעות – רמז ברור
           st.hush();
           // מילה נוספת נלמדת: מיקה אומרת איזו חיה זאת באנגלית, ושואלת שוב
           (async () => {
@@ -125,7 +125,7 @@ export async function runAnimals(root, { players }, onDone) {
       sfx.sparkle();
       picked.fly(800, 520, 1.5, 450);
       await st.wait(470);
-      const box = picked.el.getBoundingClientRect(); fun.win(box.left + box.width / 2, box.top + box.height / 2);
+      const box = picked.el.getBoundingClientRect(); fun.burst(box.left + box.width / 2, box.top + box.height / 2);
       picked.el.classList.add('cheer');
       toto.anim('hop', 600); mika.anim('hop', 600);
       P.choice(kid.id, r.target, { correct: wrongs === 0, help, distractor: 'real', context: 'animals' });

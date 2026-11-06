@@ -6,6 +6,8 @@ import { LINES as BL } from '../content/balloons.js';
 import { LINES as FL } from '../content/feed.js';
 import { SYMBOLS, prop as drawProp } from '../art/puppets.js';
 import { LINES as AL } from '../content/animals.js';
+import { LINES as RL } from '../content/rainbow.js';
+import { LINES as CL } from '../content/count.js';
 import { sfx, unlockAudio, say as voiceSay, audioReady, stopSpeech } from '../engine/voice.js';
 // במסכי הבחירה: משפט חדש מחליף את הקודם, כדי שקולות לא ייכנסו אחד בשני
 const say = (...a) => { stopSpeech(); return voiceSay(...a); };
@@ -80,9 +82,11 @@ const TOUR = {
   balloons: BL.tour,
   feed: FL.tour,
   animals: AL.tour,
+  rainbow: RL.tour,
+  count: CL.tour,
   mic: 'ובמיקרופון: מדברים, וטוטו אומר את זה בקול שלו.',
 };
-const ENTER = { cafe: 'נכנסים לבית הקפה!', band: 'נכנסים ללהקה!', silly: 'נכנסים לטוטו טועה!', karaoke: KL.enter, balloons: BL.enter, feed: FL.enter, animals: AL.enter };
+const ENTER = { cafe: 'נכנסים לבית הקפה!', band: 'נכנסים ללהקה!', silly: 'נכנסים לטוטו טועה!', karaoke: KL.enter, balloons: BL.enter, feed: FL.enter, animals: AL.enter, rainbow: RL.enter, count: CL.enter };
 
 export function homeScreen(root, { players, onPlay, onBack, onParents, rest = false }) {
   const sisters = players.length > 1;
@@ -108,6 +112,8 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
     { id: 'karaoke', tag: 'music', x: 1185, scale: 0.74, html: () => karaokeBooth(), always: true },
     { id: 'silly', tag: 'animals', x: 1420, scale: 0.68, html: () => sillyBooth(), always: true },
     { id: 'animals', tag: 'animals', x: 700, y: 330, scale: 0.85, html: () => animalCloud(), always: true },
+    { id: 'count', tag: 'play', x: 1060, y: 985, scale: 0.66, html: () => countBlocks(), always: true, front: true },
+    { id: 'rainbow', tag: 'play', x: 1300, y: 380, scale: 0.62, html: () => rainbowDoor(), always: true },
     { id: 'balloons', tag: 'play', x: 1060, y: 420, scale: 0.8, html: () => balloonBunch(), always: true },
   ].filter((s) => s.always || isPlayable(s.id)).map((s) => { const y = s.y || 790; const el = g(st.layers.back, s.html(), s.x, y); el.classList.add(`${s.id}-door`, 'tappable'); el.setAttribute('transform', `translate(${s.x},${y}) scale(${s.scale || 1})`); return { ...s, el }; });
 
@@ -198,6 +204,23 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
   root.querySelector('.hud-back').addEventListener('pointerup', () => { st.destroy(); onBack(); });
   root.querySelector('.parent-door').addEventListener('pointerup', () => { st.destroy(); onParents(); });
   return st;
+}
+
+/** קוביות 1-2-3 על הרצפה – הדלת ל"סופרים" */
+function countBlocks() {
+  const B = [[-80, 0, '#FF4F8B', '1'], [80, 0, '#4FA3FF', '2'], [0, -150, '#FFD23F', '3']];
+  return `<g class="booth count-blocks">${B.map(([x, y, c, t]) => `<g transform="translate(${x},${y})"><rect x="-72" y="-148" width="144" height="144" rx="20" fill="${c}" stroke="#2A1A5E" stroke-width="6"/>
+    <rect x="-60" y="-136" width="120" height="120" rx="14" fill="none" stroke="#fff" stroke-width="4" opacity=".5"/>
+    <text x="0" y="-38" text-anchor="middle" font-size="104" font-weight="700" fill="#fff" stroke="#2A1A5E" stroke-width="5" paint-order="stroke" font-family="Fredoka, sans-serif">${t}</text></g>`).join('')}</g>`;
+}
+
+/** קשת קטנה – הדלת ל"הקשת" */
+function rainbowDoor() {
+  const C = ['#F0323C', '#FF8C1A', '#FFD60A', '#2DBE4E', '#2F7BFF', '#9B4DFF'];
+  return `<g class="booth rainbow-door">
+    ${C.map((c, i) => { const r = 170 - i * 22; return `<path d="M${-r},0 A${r},${r} 0 0 1 ${r},0" fill="none" stroke="#2A1A5E" stroke-width="26"/><path d="M${-r},0 A${r},${r} 0 0 1 ${r},0" fill="none" stroke="${c}" stroke-width="19"/>`; }).join('')}
+    <g fill="#fff" stroke="#2A1A5E" stroke-width="5"><ellipse cx="-150" cy="0" rx="62" ry="30"/><ellipse cx="150" cy="0" rx="62" ry="30"/></g>
+  </g>`;
 }
 
 /** ענן חיות מרחף – הדלת ל"עולם החיות" */

@@ -132,6 +132,16 @@ Object.values(ANL).forEach((t) => add('mika', 'he', t));
 ANQ.forEach((q) => add('mika', 'he', q.text));
 Object.values(ANF).forEach((t) => add('mika', 'he', t));
 ANIMAL_IDS.forEach((a) => add('mika', 'en', `${cap(VOCAB[a].en)}!`));
+// הקשת
+import { LINES as RBL, QUESTIONS as RBQ, FACTS as RBF, BANDS } from '../../src/content/rainbow.js';
+Object.values(RBL).forEach((t) => add('mika', 'he', t));
+Object.values(RBQ).flat().forEach((t) => add('mika', 'he', t));
+Object.values(RBF).forEach((t) => add('mika', 'he', t));
+BANDS.forEach((c) => add('mika', 'en', `${cap(VOCAB[c].en)}!`));
+// סופרים
+import { LINES as CNL, NUMS } from '../../src/content/count.js';
+Object.values(CNL).forEach((t) => add('mika', 'he', t));
+NUMS.forEach((n) => add('mika', 'en', `${cap(VOCAB[n].en)}!`));
 
 const saidFile = new URL('./said.json', import.meta.url);
 if (fs.existsSync(saidFile)) JSON.parse(fs.readFileSync(saidFile, 'utf8')).forEach((k) => { const [w, l, ...t] = k.split('|'); add(w, l, t.join('|')); });

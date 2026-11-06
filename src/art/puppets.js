@@ -164,6 +164,16 @@ export const CAST = { mika, toto, bum, lulu, owl };
 // ---------- אביזרים ----------
 let uid = 0;
 
+// ---------- צנצנות צבע (משחק "הקשת") ----------
+export const PAINT = { red: '#F0323C', c_orange: '#FF8C1A', yellow: '#FFD60A', green: '#2DBE4E', blue: '#2F7BFF', purple: '#9B4DFF' };
+const pot = (c) => `<path d="M-50,-20 L-44,52 C-42,62 42,62 44,52 L50,-20Z" fill="#fffaf0" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M-48,-4 L-45,40 C-30,48 30,48 45,40 L48,-4Z" fill="${c}"/>
+  <ellipse cy="-20" rx="50" ry="14" fill="${c}" stroke="${INK}" stroke-width="4"/>
+  <path d="M-20,-24 C-24,-6 -10,4 -14,22 C-12,30 -4,30 -4,22 C-6,4 -18,-6 -10,-24" fill="${c}" stroke="${INK}" stroke-width="3"/>
+  <ellipse cx="-22" cy="-22" rx="12" ry="4" fill="#fff" opacity=".5"/>
+  <path d="M30,-40 L58,-86" stroke="#C98B4E" stroke-width="9" stroke-linecap="round"/><path d="M24,-30 C22,-40 34,-46 38,-38 L30,-24Z" fill="${c}" stroke="${INK}" stroke-width="3"/>
+  <path d="M-34,8 L-32,36" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".45"/>`;
+
 // ---------- חיות (משחק "עולם החיות") ----------
 const ae = (x, y, r = 9) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${INK}" stroke-width="2.5"/><circle cx="${x + 1}" cy="${y + 1}" r="${r * 0.55}" fill="${INK}"/><circle cx="${x + 3}" cy="${y - 2}" r="${r * 0.2}" fill="#fff"/>`;
 const blush = (x, y) => `<ellipse cx="${x}" cy="${y}" rx="8" ry="5" fill="#FF7A9C" opacity=".55"/>`;
@@ -229,6 +239,7 @@ const ANIMALS = {
 };
 
 export function prop(id, opts = {}) {
+  if (PAINT[id]) return `<g class="prop paint ${id}">${pot(PAINT[id])}</g>`;
   if (ANIMALS[id]) return `<g class="prop animal ${id}">${ANIMALS[id]()}</g>`;
   const k = ++uid;
   switch (id) {

@@ -35,6 +35,20 @@ export const VOCAB = {
   frog:    { en: 'frog',   he: 'צפרדע',     kind: 'word', intro: 'animals', art: 'frog',  group: 'animal' },
   horse:   { en: 'horse',  he: 'סוס',       kind: 'word', intro: 'animals', art: 'horse', group: 'animal' },
   sheep:   { en: 'sheep',  he: 'כבשה',      kind: 'word', intro: 'animals', art: 'sheep', group: 'animal' },
+  // צבעים – "הקשת"
+  red:     { en: 'red',    he: 'אדום',      kind: 'word', intro: 'rainbow', art: 'red',    group: 'color' },
+  yellow:  { en: 'yellow', he: 'צהוב',      kind: 'word', intro: 'rainbow', art: 'yellow', group: 'color' },
+  green:   { en: 'green',  he: 'ירוק',      kind: 'word', intro: 'rainbow', art: 'green',  group: 'color' },
+  blue:    { en: 'blue',   he: 'כחול',      kind: 'word', intro: 'rainbow', art: 'blue',   group: 'color' },
+  purple:  { en: 'purple', he: 'סגול',      kind: 'word', intro: 'rainbow', art: 'purple', group: 'color' },
+  c_orange: { en: 'orange', he: 'כתום',     kind: 'word', intro: 'rainbow', art: 'c_orange', group: 'color' },
+  // מספרים – "סופרים"
+  n1:      { en: 'one',    he: 'אחת',       kind: 'word', intro: 'count' },
+  n2:      { en: 'two',    he: 'שתיים',     kind: 'word', intro: 'count' },
+  n3:      { en: 'three',  he: 'שלוש',      kind: 'word', intro: 'count' },
+  n4:      { en: 'four',   he: 'ארבע',      kind: 'word', intro: 'count' },
+  n5:      { en: 'five',   he: 'חמש',       kind: 'word', intro: 'count' },
+  n6:      { en: 'six',    he: 'שש',        kind: 'word', intro: 'count' },
 };
 
 // צלילי אותיות (לשייה): צליל פותח של מילה מוכרת. סדר האותיות לפי שלב 2 של Letters and Sounds
