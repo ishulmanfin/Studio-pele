@@ -34,7 +34,12 @@ function parents() {
 }
 
 window.addEventListener('contextmenu', (e) => e.preventDefault());
-document.addEventListener('gesturestart', (e) => e.preventDefault());
+// אייפד: ספארי מתעלם מ־user-scalable=no – ילדה שנוגעת בשתי אצבעות או בנגיעה כפולה מגדילה את המסך ו"נתקעת". חוסמים זום.
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 || (window.visualViewport && visualViewport.scale !== 1)) e.preventDefault(); }, { passive: false });
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => { const now = Date.now(); if (now - lastTouchEnd < 320 && e.cancelable) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
+document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }

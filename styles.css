@@ -385,3 +385,6 @@ fieldset { border: 1px solid #e5d8c3; border-radius: 12px; padding: 12px 16px; d
 @keyframes rec-ring { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
 @keyframes rec-wave { 0% { transform: scale(1); opacity: .8; border-width: 8px; } 100% { transform: scale(2); opacity: 0; border-width: 2px; } }
 .mic-btn.show.beckon-btn { transform: translateX(-50%) scale(1); }
+
+/* אין זום בשתי אצבעות או בנגיעה כפולה בתוך המשחק */
+.stage, .hud, .who, .symbols, .site-gate { touch-action: none; }
