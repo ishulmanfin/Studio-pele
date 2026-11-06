@@ -4,7 +4,7 @@
 import { audioContext } from './voice.js';
 import { store } from './store.js';
 
-export const TEMPO = { slow: 70, normal: 104, fast: 150 };
+export const TEMPO = { slow: 62, normal: 104, fast: 184 }; // הבדל גדול ומובהק – ילדה צריכה לשמוע מיד שזה מהר או לאט
 const PENTA = [523.25, 587.33, 659.25, 783.99, 880, 1046.5]; // C D E G A C
 
 export function createBand() {

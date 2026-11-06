@@ -302,10 +302,12 @@ async function fastSlowRounds(ctx, pid, targets) {
     await st.say('mika', `${cap(VOCAB[target].en)}!`, 'en', { prompt: true });
     let wrongs = 0; let help = 0;
     for (;;) {
+      const unVoice = st.voicePick(opts.map((o) => ({ el: o.el, words: [o.id] })));
       const r = await st.waitTap(opts.map((o) => ({ el: o.el, id: o.id })), {
         hints: [{ at: 9000, level: 1, run: async () => { help = 1; await st.say('mika', `${cap(VOCAB[target].en)}!`, 'en', { slow: true }); } },
           { at: 16000, level: 2, run: () => { help = 2; opts.find((o) => o.id === target).pulse(true); } }],
       });
+      unVoice();
       band.tempo(r.id);
       if (r.id === target) break;
       wrongs++; sfx.hmm();
@@ -316,6 +318,8 @@ async function fastSlowRounds(ctx, pid, targets) {
     P.choice(pid, target, { correct: wrongs === 0, help, distractor: 'real', context: 'band:tempo' });
     if (wrongs) P.choice(pid, target, { correct: true, help: Math.max(help, 1), context: 'band:tempo' });
     song.tempo = target;
+    const chosen = opts.find((o) => o.id === target); st.fx('sparkle', chosen.x, chosen.y);
+    await st.wait(2600); // שומעים את הלהקה מנגנת מהר / לאט
     await st.say('mika', FEEDBACK[target], 'he');
     await st.wait(1200);
   }
@@ -374,30 +378,41 @@ async function conductRound(ctx, pid, who, tempo) {
   let wrongs = 0; let help = gloss ? 1 : 0;
   const players = [{ el: bum.el, id: 'bum' }, { el: toto.el, id: 'toto' }];
   for (;;) {
+    const unVoice = st.voicePick([{ el: bum.el, words: ['bum', 'boom', 'bom'] }, { el: toto.el, words: ['toto', 'toe toe', 'totoro'] }]);
     const r = await st.waitTap(players, { hints: [{ at: 10000, level: 1, run: async () => { help = Math.max(help, 1); await st.say('mika', line, 'en', { slow: true }); } }] });
+    unVoice();
     if (r.id === who) break;
     wrongs++; sfx.hmm();
     (r.id === 'bum' ? bum : toto).anim('hop', 500);
     await st.say(r.id, `Me? Hmm… ${who === 'bum' ? 'Bum' : 'Toto'}!`, 'en');
   }
   (who === 'bum' ? bum : toto).anim('hop', 500);
+  // הנגן שנבחר מתחיל לנגן מיד – הילדה רואה ושומעת שהוא הקשיב לה
+  sfx.sparkle(); st.fx('sparkle', (who === 'bum' ? bum : toto).x, (who === 'bum' ? bum : toto).y - 200);
+  band.only([who === 'bum' ? 'drum' : 'xylo']); band.tempo('normal'); band.start();
   // ואיך? מהר או לאט
   const opts = [['fast', 'rabbit'], ['slow', 'snail']].map(([id, art], i) => st.addProp(art, SIGN_X[i], SIGN_Y, { scale: 1, layer: 'fx', id }));
   let twrongs = 0;
   for (;;) {
+    const unVoice = st.voicePick(opts.map((o) => ({ el: o.el, words: [o.id] })));
     const r = await st.waitTap(opts.map((o) => ({ el: o.el, id: o.id })), { hints: [{ at: 10000, level: 1, run: async () => { help = Math.max(help, 1); await st.say('mika', line, 'en', { slow: true }); } }] });
+    unVoice();
     if (r.id === tempo) break;
     twrongs++; sfx.hmm();
+    band.tempo(r.id);
     await st.say('toto', `${cap(VOCAB[r.id].en)}? Hmm…`, 'en');
+    band.tempo('normal');
   }
+  const chosen = opts.find((o) => o.id === tempo);
+  st.fx('sparkle', chosen.x, chosen.y); chosen.wiggle?.();
+  band.tempo(tempo);
+  await st.wait(2800); // שומעים את השינוי לפני שמישהו מדבר
   opts.forEach((o) => o.remove());
   const ok = wrongs === 0 && twrongs === 0;
   P.choice(pid, 's_play', { correct: ok, help, distractor: 'real', context: `band:conduct:${who}` });
   P.choice(pid, tempo, { correct: twrongs === 0, help, distractor: 'real', context: 'band:conduct' });
-  band.only([who === 'bum' ? 'drum' : 'xylo']);
-  band.tempo(tempo); band.start();
   await st.say('mika', FEEDBACK.playOk(who, tempo), 'he');
-  await st.wait(1600);
+  await st.wait(2000);
   band.stop(); band.tempo('normal');
 }
 
@@ -475,11 +490,14 @@ async function giveCommand(ctx, pid) {
   (who === 'bum' ? bum : toto).anim('hop', 500);
   await st.say('mika', LINES.mika.swapHow, 'he');
   const opts = [['fast', 'rabbit'], ['slow', 'snail']].map(([id, art], i) => st.addProp(art, SIGN_X[i], SIGN_Y, { scale: 1, layer: 'fx', id }));
+  const unVoice = st.voicePick(opts.map((o) => ({ el: o.el, words: [o.id] })));
   const tempo = (await st.waitTap(opts.map((o) => ({ el: o.el, id: o.id })))).id;
+  unVoice();
   opts.forEach((o) => o.remove());
   const line = COMMAND.play(who, tempo);
   await st.say('mika', line, 'en');
   band.only([who === 'bum' ? 'drum' : 'xylo']); band.tempo(tempo); band.start();
+  await st.wait(2600);
   await st.say(who, LINES.toto.yay, 'en');
   P.used(pid, ['s_play', tempo], { how: 'touch', modeled: false, context: 'band:swap' });
   await st.say('mika', FEEDBACK.gaveCommand, 'he');

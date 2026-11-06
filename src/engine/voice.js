@@ -251,7 +251,7 @@ export function listen(expected, { timeout = 5000, onState } = {}) {
         for (const r of e.results) for (const alt of r) {
           const t = alt.transcript.toLowerCase();
           best = best || t;
-          if (expected.some((w) => t.includes(w.toLowerCase()))) return end('match');
+          if (expected.some((w) => t.includes(w.toLowerCase()))) { best = t; return end('match'); }
         }
       };
       rec.onerror = () => end(best ? 'unsure' : 'none');

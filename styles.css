@@ -371,3 +371,17 @@ fieldset { border: 1px solid #e5d8c3; border-radius: 12px; padding: 12px 16px; d
 .sg-k { height: 60px; border-radius: 18px; border: 4px solid var(--ink); background: #FFF6E5; font-size: 28px; font-weight: 700; color: var(--ink); }
 .sg-k:disabled { visibility: hidden; }
 @media (max-height: 460px) { .sg-pad { grid-template-columns: repeat(3, 60px); gap: 6px; } .sg-k { height: 44px; font-size: 22px; } .sg-title { font-size: 24px; } .sg-sub { margin-bottom: 8px; } }
+
+/* ---------- כפתור הקלטה: אדום, ברור, "מדברים כאן" ---------- */
+.mic-btn, .puppet-btn { background: #FF3B4E !important; overflow: visible; }
+.mic-btn svg rect, .puppet-btn svg rect { fill: #FFFFFF; }
+.mic-btn svg path, .puppet-btn svg path { stroke: #FFFFFF; }
+.mic-btn .rec-dot, .puppet-btn .rec-dot { display: none; }
+.mic-btn::before, .puppet-btn::before, .mic-btn::after, .puppet-btn::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 6px solid #FF3B4E; opacity: 0; pointer-events: none; }
+.mic-btn.show.beckon-btn::before, .puppet-btn.beckon-btn::before { animation: rec-ring 1.6s ease-out infinite; }
+.mic-btn.listening::before, .puppet-btn.listening::before, .mic-btn.listening::after, .puppet-btn.listening::after { animation: rec-wave 1s ease-out infinite; }
+.mic-btn.listening::after, .puppet-btn.listening::after { animation-delay: .5s; }
+.mic-btn.listening, .puppet-btn.listening { background: #E0001B !important; }
+@keyframes rec-ring { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
+@keyframes rec-wave { 0% { transform: scale(1); opacity: .8; border-width: 8px; } 100% { transform: scale(2); opacity: 0; border-width: 2px; } }
+.mic-btn.show.beckon-btn { transform: translateX(-50%) scale(1); }

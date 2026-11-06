@@ -258,6 +258,29 @@ export function createStage(root, { bg = '', width = 1600, height = 1000, entry 
       return res;
     },
 
+    /** בחירה בקול, במקביל למגע: כפתור הקלטה אדום מופיע; כשהילדה אומרת מילה מתאימה – כאילו נגעה.
+     *  choices: [{el, words}]. מחזיר פונקציה שמסירה את הכפתור. בלי אישור הורה למיקרופון – לא מופיע כלום. */
+    voicePick(choices) {
+      if (!micAvailable()) return () => {};
+      const btn = document.querySelector('.mic-btn');
+      if (!btn) return () => {};
+      let alive = true; let busy = false;
+      btn.classList.add('show', 'beckon-btn');
+      const go = async () => {
+        if (busy || !alive) return; busy = true;
+        btn.classList.remove('beckon-btn');
+        const r = await listen(choices.flatMap((c) => c.words), { timeout: 4500, onState: (s) => btn.classList.toggle('listening', s === 'on') });
+        busy = false;
+        if (!alive) return;
+        const heard = (r.heard || '').toLowerCase();
+        const hit = r.status === 'match' && choices.find((c) => c.words.some((w) => heard.includes(w.toLowerCase())));
+        if (hit) { sfx.sparkle(); hit.el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); }
+        else { sfx.hmm(); btn.classList.add('beckon-btn'); }
+      };
+      btn.addEventListener('pointerup', go);
+      return () => { alive = false; btn.removeEventListener('pointerup', go); btn.classList.remove('show', 'listening', 'beckon-btn'); };
+    },
+
     fx(kind, x, y) {
       const g = document.createElementNS(NS, 'g');
       g.setAttribute('transform', `translate(${x},${y})`);

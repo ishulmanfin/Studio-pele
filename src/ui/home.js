@@ -200,19 +200,30 @@ function setupPuppet(root, st, toto, pids) {
     await st.say('toto', `${VOCAB[w].en[0].toUpperCase()}${VOCAB[w].en.slice(1)}!`, 'en');
     btn.classList.add('beckon-btn');
   };
+  // אפשר גם להחזיק וגם לגעת פעם אחת: נגיעה קצרה מקליטה כ־3 שניות (או עד נגיעה נוספת)
+  let downAt = 0; let auto = null; let pressed = false;
   const down = async (e) => {
     e.preventDefault();
+    if (cap && auto) { clearTimeout(auto); auto = null; downAt = 0; return finishRec(); }
     if (busy || cap) return;
+    downAt = Date.now(); pressed = true;
     busy = true;
     try {
       if (!shown) { await st.say('mika', 'מחזיקים את המיקרופון לחוץ, אומרים את המילה, ועוזבים. טוטו יגיד אותה בקול שלך!', 'he'); await showWord(); busy = false; return; }
       cap = await startCapture({ onLevel: (v) => toto.el.style.setProperty('--listen', v) });
       btn.classList.add('listening'); btn.classList.remove('beckon-btn');
       toto.look('front');
+      if (!pressed) auto = setTimeout(() => { auto = null; finishRec(); }, 3000); // כבר עזבה בזמן ההכנה – מקליטים 3 שניות
     } catch { cap = null; btn.hidden = true; } // אין הרשאה – פשוט לא מציגים
     busy = false;
   };
-  const up = async () => {
+  const up = () => {
+    pressed = false;
+    if (!cap || auto) return;
+    if (Date.now() - downAt < 450) { auto = setTimeout(() => { auto = null; finishRec(); }, 3000); return; }
+    finishRec();
+  };
+  const finishRec = async () => {
     if (!cap) return;
     const c = cap; cap = null;
     btn.classList.remove('listening');
