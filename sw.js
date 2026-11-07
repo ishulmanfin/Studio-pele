@@ -1,5 +1,5 @@
 // מטמון לא מקוון: כל הספרייה המאושרת עובדת גם בלי רשת.
-const V = 'studio-pele-v26';
+const V = 'studio-pele-v27';
 const FILES = ['./', 'index.html', 'styles.css', 'manifest.webmanifest', 'icons/icon.svg',
   'src/main.js', 'src/engine/store.js', 'src/engine/progress.js', 'src/engine/voice.js', 'src/engine/stage.js',
   'src/art/puppets.js', 'src/art/sets.js', 'src/content/vocab.js', 'src/content/season.js', 'src/content/cafe.js', 'src/content/library.js', 'src/content/missions.js', 'src/content/band.js', 'src/ui/band.js', 'src/engine/music.js', 'src/engine/puppet.js', 'src/ui/silly.js', 'src/content/silly.js', 'src/engine/growth.js', 'src/engine/split.js', 'src/engine/fun.js', 'src/gate.js', 'src/content/help.js', 'src/content/karaoke.js', 'src/ui/karaoke.js', 'src/gate-code.js', 'src/content/balloons.js', 'src/ui/balloons.js', 'src/content/feed.js', 'src/ui/feed.js', 'src/content/animals.js', 'src/ui/animals.js', 'src/content/rainbow.js', 'src/ui/rainbow.js', 'src/content/count.js', 'src/ui/count.js',
