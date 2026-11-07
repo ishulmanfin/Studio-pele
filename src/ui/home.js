@@ -8,6 +8,7 @@ import { SYMBOLS, prop as drawProp } from '../art/puppets.js';
 import { LINES as AL } from '../content/animals.js';
 import { LINES as RL } from '../content/rainbow.js';
 import { LINES as CL } from '../content/count.js';
+import { L as LL } from '../content/lesson.js';
 import { sfx, unlockAudio, say as voiceSay, audioReady, stopSpeech } from '../engine/voice.js';
 // במסכי הבחירה: משפט חדש מחליף את הקודם, כדי שקולות לא ייכנסו אחד בשני
 const say = (...a) => { stopSpeech(); return voiceSay(...a); };
@@ -84,9 +85,23 @@ const TOUR = {
   animals: AL.tour,
   rainbow: RL.tour,
   count: CL.tour,
+  lesson: LL.tour,
   mic: 'ובמיקרופון: מדברים, וטוטו אומר את זה בקול שלו.',
 };
-const ENTER = { cafe: 'נכנסים לבית הקפה!', band: 'נכנסים ללהקה!', silly: 'נכנסים לטוטו טועה!', karaoke: KL.enter, balloons: BL.enter, feed: FL.enter, animals: AL.enter, rainbow: RL.enter, count: CL.enter };
+const ENTER = { cafe: 'נכנסים לבית הקפה!', band: 'נכנסים ללהקה!', silly: 'נכנסים לטוטו טועה!', karaoke: KL.enter, balloons: BL.enter, feed: FL.enter, animals: AL.enter, rainbow: RL.enter, count: CL.enter, lesson: LL.enter };
+
+/** הדלת לשיעור של מיקה: לוח קטן עם אותיות, כומתה סגולה וכוכב */
+function lessonBoard() {
+  return `<g class="lesson-board">
+    <path d="M-90,120 L-120,260 M90,120 L120,260" stroke="#9A6038" stroke-width="14" stroke-linecap="round"/>
+    <rect x="-150" y="-150" width="300" height="270" rx="22" fill="#3E6B5A" stroke="#9A6038" stroke-width="16"/>
+    <rect x="-150" y="-150" width="300" height="270" rx="22" fill="none" stroke="#2A1A5E" stroke-width="4"/>
+    <text x="0" y="-20" font-size="96" font-weight="700" text-anchor="middle" fill="#fff" font-family="Fredoka, Rubik, sans-serif" style="direction:ltr">ABC</text>
+    <path d="M-90,40 q30,-18 60,0 t60,0 t60,0" fill="none" stroke="#FFD23F" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="-40" cy="-160" rx="110" ry="32" fill="#7B5CFF" stroke="#2A1A5E" stroke-width="5" transform="rotate(-10 -40 -160)"/>
+    <path d="M116,-150 l10,22 l24,2 l-18,16 l6,24 l-22,-13 l-22,13 l6,-24 l-18,-16 l24,-2 Z" fill="#FFD23F" stroke="#2A1A5E" stroke-width="4" stroke-linejoin="round"/>
+  </g>`;
+}
 
 export function homeScreen(root, { players, onPlay, onBack, onParents, rest = false }) {
   const sisters = players.length > 1;
@@ -115,6 +130,7 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
     { id: 'count', tag: 'play', x: 1060, y: 985, scale: 0.66, html: () => countBlocks(), always: true, front: true },
     { id: 'rainbow', tag: 'play', x: 1300, y: 380, scale: 0.62, html: () => rainbowDoor(), always: true },
     { id: 'balloons', tag: 'play', x: 1060, y: 420, scale: 0.8, html: () => balloonBunch(), always: true },
+    { id: 'lesson', tag: 'lesson', x: 250, y: 600, scale: 0.62, html: () => lessonBoard(), always: true },
   ].filter((s) => s.always || isPlayable(s.id)).map((s) => { const y = s.y || 790; const el = g(st.layers.back, s.html(), s.x, y); el.classList.add(`${s.id}-door`, 'tappable'); el.setAttribute('transform', `translate(${s.x},${y}) scale(${s.scale || 1})`); return { ...s, el }; });
 
   // מיקה בצד שמאל של הרצפה, כדי שלא תסתיר את דוכן הלהקה; בום בין בית הקפה ללהקה

@@ -21,6 +21,7 @@ function defaults() {
     interests: {},  // profileId -> { tag: count }
     library: {},    // packId -> { status: 'approved'|'declined', at }
     missions: {},   // owner -> { phrase, items, parent, at, homeReports: [ts] }
+    teacher: {},    // profileId -> זיכרון המורה: רמה, חד-קרן, מה היא אוהבת, שיעורים
     lastSessionStart: null,
   };
 }
@@ -83,7 +84,7 @@ export const store = {
   setPackStatus(packId, status) { load().library[packId] = { status, at: Date.now() }; save(); },
   deleteChild(id) {
     const d = load();
-    delete d.progress[id]; delete d.creations[id]; delete d.interests[id]; delete d.missions[id]; delete d.missions.sisters;
+    delete d.progress[id]; if (d.teacher) delete d.teacher[id]; delete d.creations[id]; delete d.interests[id]; delete d.missions[id]; delete d.missions.sisters;
     if (d.creations.sisters) delete d.creations.sisters;
     d.profiles[id].symbol = null;
     save();

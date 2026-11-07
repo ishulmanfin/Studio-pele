@@ -115,16 +115,16 @@ async function getBuffer(file) {
 }
 export function preloadLines(keys) { if (!audioCtx) return; keys.forEach((k) => manifest[k] && getBuffer(manifest[k]).catch(() => {})); }
 
-async function playRecorded(who, file, my = epoch) {
+async function playRecorded(who, file, my = epoch, key = null) {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state !== 'running') { try { await Promise.race([audioCtx.resume(), new Promise((r) => setTimeout(r, 400))]); } catch {} }
   const buf = await getBuffer(file);
   if (my !== epoch) return; // נעצר בזמן הטעינה – לא משמיעים באיחור
-  return playBuffer(who, buf);
+  return playBuffer(who, buf, { key });
 }
 
 /** משמיע AudioBuffer מפי דמות, עם סנכרון שפתיים. rate > 1 = קול גבוה ומצחיק (בובת הקול של טוטו) */
-export function playBuffer(who, buf, { rate = 1 } = {}) {
+export function playBuffer(who, buf, { rate = 1, key = null } = {}) {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   return new Promise((resolve) => {
     const src = audioCtx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
@@ -146,6 +146,7 @@ export function playBuffer(who, buf, { rate = 1 } = {}) {
     src.onended = end;
     live.add(src);
     src.start(); tick();
+    emit({ type: 'clip', who, key, dur: buf.duration / rate }); // למורה: סנכרון שפתיים לפי צורות פה מחושבות מראש
   });
 }
 
@@ -157,7 +158,7 @@ export function say(who, text, lang = 'en', { slow = false } = {}) {
   if (s.voice && file && !window.__FAST) {
     emit({ type: 'start', who, text, lang, recorded: true });
     const t0 = performance.now(); const my = epoch;
-    return playRecorded(who, file, my).catch(async () => {
+    return playRecorded(who, file, my, voiceKey(who, lang, text)).catch(async () => {
       if (my !== epoch) return;
       // ההקלטה לא נטענה (רשת / גרסה ישנה): טוענים מחדש את רשימת הקולות, ובינתיים נותנים זמן לבועה – לא רצים הלאה
       reloadManifestSoon();
@@ -169,7 +170,7 @@ export function say(who, text, lang = 'en', { slow = false } = {}) {
   if (s.voice && parts && !window.__FAST && parts.every((t) => manifest[voiceKey(who, lang, t)])) {
     emit({ type: 'start', who, text, lang, recorded: true });
     const my = epoch;
-    return parts.reduce((p, t) => p.then(() => (my === epoch ? playRecorded(who, manifest[voiceKey(who, lang, t)], my) : undefined)), Promise.resolve())
+    return parts.reduce((p, t) => p.then(() => (my === epoch ? playRecorded(who, manifest[voiceKey(who, lang, t)], my, voiceKey(who, lang, t)) : undefined)), Promise.resolve())
       .catch(() => {}).finally(() => emit({ type: 'end', who, text, lang }));
   }
   if (!window.__FAST) voiceStatus.missing.add(voiceKey(who, lang, text));

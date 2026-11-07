@@ -3,7 +3,8 @@
 
 מנתח את הצליל עצמו (עוצמה, מיקום האנרגיה בתדרים, רעש של ש/ס/פ) ומחזיר רצף צורות:
   X מנוחה · M שפתיים סגורות · A פתוח רחב · E חיוך פתוח · O עגול · U עגול קטן · F שיניים על שפה
-שימוש: visemes.py file.mp3 [...]  → JSON על stdout: {"file": "X0 A80 O160 ..."} (זמנים במילישניות)
+שימוש: visemes.py  → assets/voice/visemes.json לכל ההקלטות של מיקה
+       visemes.py file.mp3 [...]  → JSON על stdout: {"file": "X0 A80 O160 ..."} (זמנים במילישניות)
 דורש ffmpeg ו-numpy.
 """
 import json
@@ -103,5 +104,25 @@ def analyze(path):
     return smooth(classify(spec, f))
 
 
+
+
+def all_mika(out='assets/voice/visemes.json', who=('mika',)):
+    """לכל הקלטה של הדמויות ברשימה (manifest.json + הקבצים הבודדים) – רצף צורות פה. מפתח = who|lang|text."""
+    import os
+    m = json.load(open('assets/voice/manifest.json'))
+    old = json.load(open(out)) if os.path.exists(out) else {}
+    res = {}
+    for k, f in m.items():
+        if k.split('|')[0] not in who:
+            continue
+        res[k] = old.get(k) if k in old else analyze('assets/voice/' + f)
+    json.dump(res, open(out, 'w'), ensure_ascii=False, separators=(',', ':'))
+    return len(res)
+
+
 if __name__ == '__main__':
-    print(json.dumps({p.rsplit('/', 1)[-1]: analyze(p) for p in sys.argv[1:]}, ensure_ascii=False, indent=1))
+    # בלי ארגומנטים: כל ההקלטות של מיקה → assets/voice/visemes.json (מריצים אחרי generate.mjs render, לפני bundle.mjs)
+    if len(sys.argv) == 1:
+        print(all_mika(), 'lines')
+    else:
+        print(json.dumps({p.rsplit('/', 1)[-1]: analyze(p) for p in sys.argv[1:]}, ensure_ascii=False, indent=1))

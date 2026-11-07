@@ -10,6 +10,9 @@ import { PACKS, SOURCES, reviewPack } from '../content/library.js';
 import { prop } from '../art/puppets.js';
 import * as GROW from '../engine/growth.js';
 import { POOL } from '../content/cafe.js';
+import * as MIND from '../engine/mind.js';
+import { LIKES, TOPICS, MAX_LEVEL } from '../content/lesson.js';
+import { UNICORNS } from '../art/unicorns.js';
 
 export function parentGate(root, { onPass, onCancel }) {
   const a = 11 + Math.floor(Math.random() * 9);
@@ -48,13 +51,26 @@ export function parentArea(root, { onExit }) {
   render();
 }
 
+// ---------------- השיעור של מיקה ----------------
+function teacherBlock(p) {
+  const r = MIND.report(p.id);
+  if (!r.lessons) return `<div class="teacher-sum"><h3>השיעור של מיקה</h3><p class="muted">עוד לא היה שיעור. מיקה מתחילה ברמה ${r.level} מתוך ${MAX_LEVEL[p.track]}, לפי הגיל.</p></div>`;
+  const last = r.last;
+  const recent = MIND.memory(p.id).lessons.slice(-5);
+  return `<div class="teacher-sum"><h3>השיעור של מיקה</h3>
+    <p>רמה <b>${r.level}</b> מתוך ${MAX_LEVEL[p.track]} · ${r.lessons} שיעורים${r.unicorn ? ` · החד־קרן: ${UNICORNS[r.unicorn].name}` : ''}</p>
+    <p>שיעור אחרון: ${TOPICS[last.topic].he}, מילים חדשות: <b lang="en" dir="ltr">${last.words.map((w) => VOCAB[w].en).join(', ') || '–'}</b> · הצליחה בניסיון ראשון ב־${Math.round(last.acc * 100)}%${last.silences ? ` · ${last.silences} פעמים נעזרה אחרי המתנה` : ''}</p>
+    <p class="muted">מיקה מעלה רמה אחרי שני שיעורים ברצף עם 85% הצלחה ומעלה, ומורידה רמה מתחת ל־60% או אחרי הרבה המתנות. ההצלחות האחרונות: ${recent.map((l) => Math.round(l.acc * 100) + '%').join(' · ')}</p>
+  </div>`;
+}
+
 // ---------------- סיכום ----------------
 function childSummary(p) {
   const items = P.allItems(p.id);
   const ids = Object.keys(items).filter((id) => VOCAB[id]);
   const sess = P.sessions(p.id);
   const minutes = Math.round(sess.reduce((s, x) => s + ((x.end || x.start) - x.start), 0) / 60000);
-  if (!ids.length) return `<section class="child"><h2>${esc(p.name)}</h2><p class="muted">עוד אין ראיות מהמשחק.</p></section>`;
+  if (!ids.length) return `<section class="child"><h2>${esc(p.name)}</h2><p class="muted">עוד אין ראיות מהמשחק.</p>${teacherBlock(p)}</section>`;
 
   const rows = ids.map((id) => ({ id, st: P.stage(p.id, id), it: items[id], v: VOCAB[id] }))
     .sort((a, b) => b.st - a.st || a.id.localeCompare(b.id));
@@ -95,6 +111,7 @@ function childSummary(p) {
       ${rows.map((r) => `<tr><td><b lang="en" dir="ltr">${r.v.en}</b><br><small>${r.v.he}</small></td><td><span class="stage s${r.st}">${r.st} · ${P.STAGE_LABELS[r.st]}</span></td><td>${evidence(r)}</td><td><small>${caution(r)}</small></td></tr>`).join('')}
       </tbody></table></details>
     <div class="offscreen"><h3>לשחק מחוץ למסך</h3><ul>${ideas(p, rows).map((x) => `<li>${x}</li>`).join('')}</ul></div>
+    ${teacherBlock(p)}
     ${interestsLine(p)}
     ${missionBlock(p.id)}
   </section>`;
@@ -176,6 +193,8 @@ const TABS = {
   profiles: () => `<div class="form">${store.profiles().map((p) => `<fieldset><legend>${esc(p.name)}</legend>
       <label>שם <input data-p="${p.id}" data-f="name" value="${esc(p.name)}"></label>
       <label>מסלול <select data-p="${p.id}" data-f="track"><option value="younger" ${p.track === 'younger' ? 'selected' : ''}>צעיר (בערך גיל 3): פעולה אחת, שתי אפשרויות</option><option value="older" ${p.track === 'older' ? 'selected' : ''}>בוגר (בערך גיל 5): תפקיד, בקשות ושימוש</option></select></label>
+      <div class="likes"><b>מה ${esc(p.name)} אוהבת?</b> <small class="muted">מיקה תזכור ותבנה סביב זה את השיעורים</small><br>
+        ${Object.entries(LIKES).map(([k, l]) => `<label class="chip"><input type="checkbox" data-like="${p.id}" value="${k}" ${MIND.memory(p.id).likes.includes(k) ? 'checked' : ''}> ${l.he}</label>`).join(' ')}</div>
       <button data-resetsym="${p.id}">בחירת סמל מחדש</button></fieldset>`).join('')}</div>`,
   library: () => {
     const kids = store.profiles();
@@ -242,6 +261,10 @@ const BIND = {
   profiles(root, render) {
     root.querySelectorAll('[data-p]').forEach((i) => (i.onchange = () => { store.updateProfile(i.dataset.p, { [i.dataset.f]: i.value.trim() || i.value }); render(); }));
     root.querySelectorAll('[data-resetsym]').forEach((b) => (b.onclick = () => { store.updateProfile(b.dataset.resetsym, { symbol: null }); render(); }));
+    root.querySelectorAll('[data-like]').forEach((i) => (i.onchange = () => {
+      const pid = i.dataset.like;
+      MIND.setLikes(pid, [...root.querySelectorAll(`[data-like="${pid}"]:checked`)].map((x) => x.value));
+    }));
   },
   data(root, render) {
     const box = root.querySelector('.confirm-del');

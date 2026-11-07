@@ -1,6 +1,8 @@
 // בקר הדמות של מיקה המורה: תנוחות, מבט, הבעות, מצמוץ, נשימה וסנכרון שפתיים.
 // הכל מחושב כפונקציה של זמן (t בשניות), כך שאותה תנועה יוצאת זהה בזמן אמת ובהקלטת סרטון.
 
+import { GEOM } from '../art/teacher.js';
+
 const ease = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 const lerp = (a, b, k) => a + (b - a) * k;
 
@@ -53,7 +55,7 @@ export function createTeacher(root) {
     let i = c.length - 1; while (i > 0 && c[i].t > t) i--;
     const at = (j, tt) => {
       const cur = c[j];
-      if (j === 0) return cur.v;
+      if (j === 0) return mix(cur.v, cur.v, 1);
       return mix(at(j - 1, cur.t), cur.v, ease((tt - cur.t) / (cur.d || 1e-6)));
     };
     return at(i, t);
@@ -95,19 +97,19 @@ export function createTeacher(root) {
     R.torso.setAttribute('transform', `translate(0,${-470 * 0.012 * breathe * 0.5}) scale(1,${1 + 0.006 * breathe})`);
     R.body.parentNode.setAttribute('transform', `rotate(${lean * 4 + turn * 1.5} 0 0)`);
     const headRot = sway + turn * 7 + talkNod + expr.brow[2] * 0.4;
-    R.head.setAttribute('transform', `translate(${turn * 6},${breathe * -1.5}) rotate(${headRot} 0 -480)`);
+    R.head.setAttribute('transform', `translate(${turn * 6},${breathe * -1.5}) rotate(${headRot} ${GEOM.neck[0]} ${GEOM.neck[1]})`);
     // סיבוב פנים (2.5D): התווים זזים לכיוון שאליו היא פונה
-    R.face.setAttribute('transform', `translate(${turn * 16},${talkNod * 0.6})`);
-    R.beret.setAttribute('transform', `rotate(${-9 - turn * 3} -10 -722) translate(${-turn * 6},0)`);
+    R.face.setAttribute('transform', `translate(${turn * 18},${talkNod * 0.6})`);
+    R.beret.setAttribute('transform', `rotate(${-8 - turn * 3} ${GEOM.beret[0]} ${GEOM.beret[1]}) translate(${-turn * 6},0)`);
 
     // זרועות + תוספות דינמיות (נפנוף, מחיאות כפיים)
     const waveAmt = pose.name === 'wave' ? 22 * Math.sin(t * 11) : 0;
     const clapAmt = pose.name === 'clap' ? 14 * Math.max(0, Math.sin(t * 13)) : 0;
     const gest = talking && (pose.name === 'present' || pose.name === 'rest' || pose.name === 'hips') ? 4 * Math.sin(t * 3.1) : 0;
     R.ul.setAttribute('transform', `rotate(${-(pose.l[0] + clapAmt + gest)} 0 0)`); // הזרוע השמאלית משוקפת, לכן אותו סימן
-    R.fl.setAttribute('transform', `translate(0,118) rotate(${-pose.l[1]} 0 0)`);
+    R.fl.setAttribute('transform', `translate(0,${GEOM.upper}) rotate(${-pose.l[1]} 0 0)`);
     R.ur.setAttribute('transform', `rotate(${-(pose.r[0] + clapAmt - gest)} 0 0)`);
-    R.fr.setAttribute('transform', `translate(0,118) rotate(${-(pose.r[1] + waveAmt)} 0 0)`);
+    R.fr.setAttribute('transform', `translate(0,${GEOM.upper}) rotate(${-(pose.r[1] + waveAmt)} 0 0)`);
 
     // עיניים: מבט, מצמוץ, עיני שמחה
     const bi = Math.floor(t / 3.4);
@@ -120,7 +122,7 @@ export function createTeacher(root) {
       e.pupil.setAttribute('transform', `translate(${(gaze[0] + turn * 0.4) * 5},${gaze[1] * 5})`);
       const lift = expr.brow[0] + (e.side === 'r' ? -expr.brow[2] : 0) + (talking ? Math.sin(t * 4) * 1.5 : 0);
       const tilt = (e.side === 'l' ? 1 : -1) * expr.brow[1];
-      e.brow.setAttribute('transform', `translate(${e.side === 'l' ? -38 : 38},${-640 + lift}) rotate(${tilt})`);
+      e.brow.setAttribute('transform', `translate(${e.side === 'l' ? -GEOM.brow.x : GEOM.brow.x},${GEOM.brow.y + lift}) rotate(${tilt})`);
     }
 
     const m = mouthAt(t);
