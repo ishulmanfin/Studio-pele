@@ -64,7 +64,16 @@ export function unlockAudio() {
 }
 
 let speaking = 0;
-export function stopSpeech() { try { synth?.cancel(); } catch {} try { currentSrc?.stop(); } catch {} speaking = 0; }
+// כל עצירה מקדמת את "הדור": הקלטה שעוד נטענה ברשת, או החלק השני של משפט מפוצל, לא יתחילו אחרי עצירה
+// (אחרת הם מתנגנים מאוחר יותר, מעל המשפט הבא)
+let epoch = 0;
+const live = new Set();
+export function stopSpeech() {
+  epoch++;
+  try { synth?.cancel(); } catch {}
+  for (const s of live) { try { s.stop(); } catch {} }
+  live.clear(); speaking = 0;
+}
 
 /**
  * אמירת שורה. lang: 'en' | 'he'. מחזיר Promise שנפתר בסוף השורה (או לפי הערכת זמן).
@@ -106,11 +115,11 @@ async function getBuffer(file) {
 }
 export function preloadLines(keys) { if (!audioCtx) return; keys.forEach((k) => manifest[k] && getBuffer(manifest[k]).catch(() => {})); }
 
-let currentSrc = null;
-async function playRecorded(who, file) {
+async function playRecorded(who, file, my = epoch) {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state !== 'running') { try { await Promise.race([audioCtx.resume(), new Promise((r) => setTimeout(r, 400))]); } catch {} }
   const buf = await getBuffer(file);
+  if (my !== epoch) return; // נעצר בזמן הטעינה – לא משמיעים באיחור
   return playBuffer(who, buf);
 }
 
@@ -131,8 +140,11 @@ export function playBuffer(who, buf, { rate = 1 } = {}) {
       emit({ type: 'level', who, v: Math.min(1, Math.sqrt(sum / data.length) * 5) });
       requestAnimationFrame(tick);
     };
-    src.onended = () => { alive = false; emit({ type: 'level', who, v: 0 }); if (currentSrc === src) currentSrc = null; resolve(); };
-    currentSrc = src;
+    // רשת ביטחון: אם ההקשר הקולי מושהה (iOS אחרי שיחה/נעילה) onended לא מגיע – לא נתקעים
+    const end = () => { if (!alive) return; alive = false; clearTimeout(guard); live.delete(src); emit({ type: 'level', who, v: 0 }); resolve(); };
+    const guard = setTimeout(() => { try { src.stop(); } catch {} end(); }, (buf.duration / rate) * 1000 + 2500);
+    src.onended = end;
+    live.add(src);
     src.start(); tick();
   });
 }
@@ -144,8 +156,9 @@ export function say(who, text, lang = 'en', { slow = false } = {}) {
   const file = manifest[voiceKey(who, lang, text)];
   if (s.voice && file && !window.__FAST) {
     emit({ type: 'start', who, text, lang, recorded: true });
-    const t0 = performance.now();
-    return playRecorded(who, file).catch(async () => {
+    const t0 = performance.now(); const my = epoch;
+    return playRecorded(who, file, my).catch(async () => {
+      if (my !== epoch) return;
       // ההקלטה לא נטענה (רשת / גרסה ישנה): טוענים מחדש את רשימת הקולות, ובינתיים נותנים זמן לבועה – לא רצים הלאה
       reloadManifestSoon();
       const est = Math.max(1400, text.length * (lang === 'en' ? 90 : 75) + 500) - (performance.now() - t0);
@@ -155,7 +168,8 @@ export function say(who, text, lang = 'en', { slow = false } = {}) {
   const parts = !file && splitLine(text, lang);
   if (s.voice && parts && !window.__FAST && parts.every((t) => manifest[voiceKey(who, lang, t)])) {
     emit({ type: 'start', who, text, lang, recorded: true });
-    return parts.reduce((p, t) => p.then(() => playRecorded(who, manifest[voiceKey(who, lang, t)])), Promise.resolve())
+    const my = epoch;
+    return parts.reduce((p, t) => p.then(() => (my === epoch ? playRecorded(who, manifest[voiceKey(who, lang, t)], my) : undefined)), Promise.resolve())
       .catch(() => {}).finally(() => emit({ type: 'end', who, text, lang }));
   }
   if (!window.__FAST) voiceStatus.missing.add(voiceKey(who, lang, text));

@@ -42,16 +42,16 @@ export async function runAnimals(root, { players }, onDone) {
   root.innerHTML = `<div class="stage"></div>${hudHtml(players)}`;
   const st = createStage(root.querySelector('.stage'), { bg: studioSet('day') });
   const hud = root.querySelector('.hud');
-  const fun = createFun(root, { music: true });
+  const fun = createFun(root, { music: true, stage: st });
   const mika = st.addActor('mika', 220, 960, { scale: 0.78 });
-  const toto = st.addActor('toto', 1400, 980, { scale: 0.58, flip: true });
+  const toto = st.addActor('toto', 1350, 985, { scale: 0.58, flip: true }); // לא מוסתר מאחורי כפתור השמיעה
   for (const p of players) P.beginSession(p.id, 'animals');
 
   hud.querySelector('.hud-replay').addEventListener('pointerup', () => st.replay().catch(() => {}));
   hud.querySelector('.hud-home').addEventListener('pointerup', () => {
     const c = root.querySelector('.exit-confirm'); c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
-    c.querySelector('.no').onpointerup = () => c.classList.remove('show');
+    c.querySelector('.no').onpointerup = () => { c.classList.remove('show'); st.replay().catch(() => {}); }; // ממשיכים: מיקה חוזרת על הבקשה שנקטעה
   });
   const setTurn = (pid) => hud.querySelectorAll('.turn-chip').forEach((c) => c.classList.toggle('on', c.dataset.pid === pid));
 

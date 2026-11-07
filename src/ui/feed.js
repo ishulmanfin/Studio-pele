@@ -36,7 +36,7 @@ export async function runFeed(root, { players }, onDone) {
   root.innerHTML = `<div class="stage"></div>${hudHtml(players)}`;
   const st = createStage(root.querySelector('.stage'), { bg: cafeSet() });
   const hud = root.querySelector('.hud');
-  const fun = createFun(root, { music: true });
+  const fun = createFun(root, { music: true, stage: st });
   const BX = 1180; const BY = 900;
   let bumScale = 1.25;
   const bum = st.addActor('bum', BX, BY, { scale: bumScale });
@@ -48,7 +48,7 @@ export async function runFeed(root, { players }, onDone) {
   hud.querySelector('.hud-home').addEventListener('pointerup', () => {
     const c = root.querySelector('.exit-confirm'); c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
-    c.querySelector('.no').onpointerup = () => c.classList.remove('show');
+    c.querySelector('.no').onpointerup = () => { c.classList.remove('show'); st.replay().catch(() => {}); }; // ממשיכים: מיקה חוזרת על הבקשה שנקטעה
   });
   const setTurn = (pid) => hud.querySelectorAll('.turn-chip').forEach((c) => c.classList.toggle('on', c.dataset.pid === pid));
 
@@ -119,7 +119,7 @@ export async function runFeed(root, { players }, onDone) {
       asked = true;
       const picked = await pickedP;
       firstRound = false;
-      tp.pulse(false);
+      tp.pulse(false); st.hush(); // "לא את זה" שעוד ממתין לא יישמע אחרי שבום כבר קיבל את האוכל
       // עף לפה – חמ חמ חמ
       const [mx, my] = mouthAt();
       await picked.fly(mx, my, 0.15, 520);

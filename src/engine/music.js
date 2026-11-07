@@ -47,7 +47,8 @@ export function createBand() {
   function schedule() {
     const ac = audioContext();
     const now = ac && on() ? ac.currentTime : performance.now() / 1000;
-    if (!next) next = now + 0.05;
+    // אחרי שהאפליקציה הייתה ברקע (טיימרים מואטים) לא מנגנים בבת אחת את כל הפעימות שהוחמצו
+    if (!next || next < now - 0.05) next = now + 0.05;
     while (next < now + 0.12) {
       const i = step % 8; const t = next;
       if (parts.has('drum')) hit(i % 4 === 0 ? 'kick' : i % 4 === 2 ? 'snare' : null, t, i);

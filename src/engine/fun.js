@@ -9,12 +9,12 @@ const COLORS = ['#FF4F8B', '#FFD23F', '#22D3A6', '#4FA3FF', '#8B5CF6', '#FF8C42'
 const STAR = (c = '#FFD23F') => `<svg viewBox="-50 -50 100 100"><path d="M0,-44 L12,-14 L44,-12 L19,8 L28,40 L0,22 L-28,40 L-19,8 L-44,-12 L-12,-14Z" fill="${c}" stroke="#2A1A5E" stroke-width="6" stroke-linejoin="round"/></svg>`;
 const reduced = () => store.settings().reduceMotion || matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export function createFun(root, { music = true } = {}) {
+export function createFun(root, { music = true, stage = null } = {}) {
   const layer = document.createElement('div'); layer.className = 'fun-layer';
   const jar = document.createElement('div'); jar.className = 'star-jar';
   jar.innerHTML = `<div class="jar-star">${STAR()}</div><span class="jar-count">0</span>`;
   root.appendChild(layer); root.appendChild(jar);
-  jar.addEventListener('pointerup', () => { jar.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.2)' }, { transform: 'scale(1)' }], { duration: 300 }); say('mika', HELP.stars, 'he'); });
+  jar.addEventListener('pointerup', () => { jar.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.2)' }, { transform: 'scale(1)' }], { duration: 300 }); if (stage?.alive) stage.say('mika', HELP.stars, 'he').catch(() => {}); else if (!stage) say('mika', HELP.stars, 'he'); });
   let stars = 0; let alive = true;
   let last = { x: innerWidth / 2, y: innerHeight / 2 };
   const track = (e) => { last = { x: e.clientX, y: e.clientY }; };
@@ -146,6 +146,7 @@ function backgroundMusic() {
   }
   const tick = () => {
     if (stopped) return;
+    if (next < ac.currentTime - 0.05) next = ac.currentTime + 0.05; // חזרה מרקע: בלי מטח תווים שהוחמצו
     while (next < ac.currentTime + 0.25) {
       const bar = Math.floor(step / 8) % 4; const i = step % 8; const ch = chords[bar];
       note(ch[pattern[i]] * 2, next, eighth * 0.9, 'triangle', 0.5);

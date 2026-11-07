@@ -26,16 +26,16 @@ export async function runRainbow(root, { players }, onDone) {
   root.innerHTML = `<div class="stage"></div>${hudHtml(players)}`;
   const st = createStage(root.querySelector('.stage'), { bg: studioSet('day') });
   const hud = root.querySelector('.hud');
-  const fun = createFun(root, { music: true });
+  const fun = createFun(root, { music: true, stage: st });
   const mika = st.addActor('mika', 200, 960, { scale: 0.75 });
-  const toto = st.addActor('toto', 1420, 980, { scale: 0.56, flip: true });
+  const toto = st.addActor('toto', 1360, 985, { scale: 0.56, flip: true }); // לא מוסתר מאחורי כפתור השמיעה
   for (const p of players) P.beginSession(p.id, 'rainbow');
 
   hud.querySelector('.hud-replay').addEventListener('pointerup', () => st.replay().catch(() => {}));
   hud.querySelector('.hud-home').addEventListener('pointerup', () => {
     const c = root.querySelector('.exit-confirm'); c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
-    c.querySelector('.no').onpointerup = () => c.classList.remove('show');
+    c.querySelector('.no').onpointerup = () => { c.classList.remove('show'); st.replay().catch(() => {}); }; // ממשיכים: מיקה חוזרת על הבקשה שנקטעה
   });
   const setTurn = (pid) => hud.querySelectorAll('.turn-chip').forEach((c) => c.classList.toggle('on', c.dataset.pid === pid));
 
@@ -80,7 +80,7 @@ export async function runRainbow(root, { players }, onDone) {
         const x = x0 + gap * k;
         const pr = st.addProp(c, x, 1300, { scale: 0.95, layer: 'front', id: `pot-${c}` });
         pr.el.classList.add('armed', 'paint-pot');
-        pr.fly(x, 930, 0.95, 420 + k * 90);
+        pr.fly(x, 915, 0.95, 420 + k * 90);
         return pr;
       });
       sfx.pop();
@@ -99,7 +99,8 @@ export async function runRainbow(root, { players }, onDone) {
           if (set[k] === target) { stops.forEach((s) => s()); pots.forEach((x) => x.el.classList.remove('armed')); resolve(pr); return; }
           sfx.boing(); pr.wiggle();
           if (!asked) return;
-          wrongs++; if (wrongs >= 2) { help = Math.max(help, 2); tp.pulse(true); } // אחרי שתי נגיעות – רמז ברור st.hush();
+          wrongs++; if (wrongs >= 2) { help = Math.max(help, 2); tp.pulse(true); } // אחרי שתי נגיעות – רמז ברור
+          st.hush();
           (async () => {
             await st.say('mika', `${cap(VOCAB[set[k]].en)}!`, 'en');
             if (!saidAgain) { saidAgain = true; await st.say('mika', LINES.again, 'he'); }

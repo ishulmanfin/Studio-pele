@@ -162,7 +162,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tile[data-k='ask'] { background: #fde2d6; } .tile[data-k='please'] { background: #fbe0e7; }
 .tile.demo { transform: scale(1.12); box-shadow: 0 0 0 8px var(--sun); }
 
-.exit-confirm { position: absolute; inset: 0; z-index: 30; background: rgba(42,26,94,.45); display: none; place-items: center; }
+.exit-confirm { position: absolute; inset: 0; z-index: 50; background: rgba(42,26,94,.45); display: none; place-items: center; }
 .exit-confirm.show { display: grid; }
 .exit-card { display: flex; gap: 60px; }
 .exit-card button { width: 170px; height: 170px; border-radius: 50%; border: 6px solid var(--ink); background: var(--berry); padding: 30px; box-shadow: 0 4px 8px rgba(42,26,94,.2), 0 12px 28px rgba(42,26,94,.18); }
@@ -224,6 +224,7 @@ span.stage { position: static; display: inline-block; border-radius: 8px; paddin
 .form label { display: flex; gap: 12px; align-items: center; }
 .form select, .form input[type=text], .form input:not([type]) { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid #d9cbb5; }
 .tog input { width: 24px; height: 24px; }
+.hud-btn[hidden] { display: none; } /* בלי זה display:grid של הכפתור מבטל את hidden – והמיקרופון הופיע גם בלי אישור הורה */
 .diag { background: #f3efe8; border-radius: 12px; padding: 12px 16px; font-size: 15px; }
 .warn { color: #E8336F; font-weight: 600; }
 .ok { color: #2f7a4d; font-weight: 700; }
@@ -398,8 +399,8 @@ fieldset { border: 1px solid #e5d8c3; border-radius: 12px; padding: 12px 16px; d
 /* בלונים */
 .balloon { cursor: pointer; }
 .balloon.glow > ellipse:nth-of-type(1) { filter: drop-shadow(0 0 18px #fff) drop-shadow(0 0 30px #FFD23F); }
-.balloon-booth .bob, .animal-cloud .bob { animation: bob 3.2s ease-in-out infinite; animation-delay: var(--d, 0s); transform-box: fill-box; }
-@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+.balloon-booth .bob, .animal-cloud .bob { animation: bob-float 3.2s ease-in-out infinite; animation-delay: var(--d, 0s); transform-box: fill-box; }
+@keyframes bob-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
 @media (prefers-reduced-motion: reduce) { .balloon-booth .bob, .animal-cloud .bob { animation: none; } }
 
 /* בום רעב */
@@ -437,3 +438,12 @@ fieldset { border: 1px solid #e5d8c3; border-radius: 12px; padding: 12px 16px; d
 .cp-item.counted .cp-bob { animation: count-hop .5s cubic-bezier(.34,1.56,.64,1) 1 both; }
 @keyframes count-hop { 0% { transform: translateY(0) scale(1); } 45% { transform: translateY(-50px) scale(1.35); } 100% { transform: translateY(0) scale(1.15); } }
 .count-plate.eaten .cp-item { transition: transform .5s ease-in, opacity .5s; opacity: 0; }
+
+/* מסכים נמוכים (אייפון לרוחב): חלון "הביתה?", סמלים ושער הורים בגודל שמתאים למסך */
+@media (max-height: 460px) {
+  .exit-card { gap: 36px; } .exit-card button { width: 112px; height: 112px; padding: 20px; }
+  .sym-btn { width: 24vmin; height: 24vmin; padding: 10px; border-radius: 24px; }
+  .gate-card { padding: 14px 26px; } .gate-card h2 { margin: 4px 0; font-size: 22px; } .gate-card p { margin: 6px 0; }
+  .gate-q { font-size: 22px; } .gate-opts { margin: 10px 0; } .gate-opts button { font-size: 22px; padding: 8px 18px; }
+  .gate-cancel { font-size: 20px; padding: 6px 16px; } .gate-cancel svg { width: 36px; height: 36px; }
+}

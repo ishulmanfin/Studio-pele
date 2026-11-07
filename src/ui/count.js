@@ -46,7 +46,7 @@ export async function runCount(root, { players }, onDone) {
   root.innerHTML = `<div class="stage"></div>${hudHtml(players)}`;
   const st = createStage(root.querySelector('.stage'), { bg: cafeSet() });
   const hud = root.querySelector('.hud');
-  const fun = createFun(root, { music: true });
+  const fun = createFun(root, { music: true, stage: st });
   const mika = st.addActor('mika', 210, 960, { scale: 0.75 });
   const bum = st.addActor('bum', 1250, 770, { scale: 0.6 });
   for (const p of players) P.beginSession(p.id, 'count');
@@ -55,7 +55,7 @@ export async function runCount(root, { players }, onDone) {
   hud.querySelector('.hud-home').addEventListener('pointerup', () => {
     const c = root.querySelector('.exit-confirm'); c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
-    c.querySelector('.no').onpointerup = () => c.classList.remove('show');
+    c.querySelector('.no').onpointerup = () => { c.classList.remove('show'); st.replay().catch(() => {}); }; // ממשיכים: מיקה חוזרת על הבקשה שנקטעה
   });
   const setTurn = (pid) => hud.querySelectorAll('.turn-chip').forEach((c) => c.classList.toggle('on', c.dataset.pid === pid));
 
@@ -95,7 +95,7 @@ export async function runCount(root, { players }, onDone) {
       if (sisters) { setTurn(kid.id); await st.say('mika', BANDL.mika.turnOf(kid.name), 'he'); }
       const item = pick(ITEMS);
       const xs = [560, 880, 1200];
-      const plates = r.opts.map((n, k) => { const g = plate(n, item, xs[k]); g.style.transform = `translate(${xs[k]}px,1300px)`; g.getBoundingClientRect(); moveTo(g, xs[k], 930, 450 + k * 100); return g; });
+      const plates = r.opts.map((n, k) => { const g = plate(n, item, xs[k]); g.style.transform = `translate(${xs[k]}px,1300px)`; g.getBoundingClientRect(); moveTo(g, xs[k], 915, 450 + k * 100); return g; });
       sfx.pop();
       await st.wait(700);
       const prompt = () => st.say('mika', en(r.t), 'en', { prompt: true });
@@ -111,7 +111,8 @@ export async function runCount(root, { players }, onDone) {
           if (r.opts[k] === r.t) { stops.forEach((s) => s()); plates.forEach((x) => x.classList.remove('armed')); resolve(g); return; }
           sfx.boing(); g.classList.remove('wiggle'); g.getBoundingClientRect(); g.classList.add('wiggle');
           if (!asked) return;
-          wrongs++; if (wrongs >= 2) { help = Math.max(help, 2); tp.classList.add('hint-pulse'); } // אחרי שתי נגיעות – רמז ברור st.hush();
+          wrongs++; if (wrongs >= 2) { help = Math.max(help, 2); tp.classList.add('hint-pulse'); } // אחרי שתי נגיעות – רמז ברור
+          st.hush();
           (async () => {
             await st.say('mika', en(r.opts[k]), 'en');
             if (!saidAgain) { saidAgain = true; await st.say('mika', LINES.again, 'he'); }

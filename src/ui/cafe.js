@@ -30,7 +30,7 @@ export async function runCafe(root, { players }, onDone) {
   root.innerHTML = `<div class="stage"></div>${hudHtml(players)}`;
   const st = createStage(root.querySelector('.stage'), { bg: cafeSet() });
   const hud = root.querySelector('.hud');
-  const fun = createFun(root, { music: true });
+  const fun = createFun(root, { music: true, stage: st });
   const started = Date.now();
   const overTime = () => (Date.now() - started) / 60000 > store.settings().sessionMinutes;
 
@@ -57,7 +57,7 @@ export async function runCafe(root, { players }, onDone) {
     const c = root.querySelector('.exit-confirm');
     c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
-    c.querySelector('.no').onpointerup = () => c.classList.remove('show');
+    c.querySelector('.no').onpointerup = () => { c.classList.remove('show'); st.replay().catch(() => {}); }; // ממשיכים: מיקה חוזרת על הבקשה שנקטעה
   }
   const setTurn = (pid) => hud.querySelectorAll('.turn-chip').forEach((c) => c.classList.toggle('on', c.dataset.pid === pid));
 
@@ -178,7 +178,9 @@ async function youngerRound(ctx, pid, target, mode, items, phrasing) {
     // תגובה מצחיקה וקצרה – בלי עונש
     await optD.fly(800, mouthY(g) + 40, 0.8, 500);
     g.mood('oops'); sfx.hmm();
-    await st.say('guest', SHOE_REACT[distractorId] || `זה ${he(distractorId)}. אני רוצה ${he(target)}.`, 'he');
+    // נעל/גרב: תגובה מצחיקה בעברית. מאכל אחר: "Apple? Hmm… Banana, please." (מוקלט לכל צירוף; הגרסה העברית לא הוקלטה)
+    if (SHOE_REACT[distractorId]) await st.say('guest', SHOE_REACT[distractorId], 'he');
+    else await st.say('guest', LINES.guest.notThat(distractorId, target), 'en');
     g.mood('');
     await optD.fly(left ? 960 : 640, ITEM_Y - 50, 0.95, 500);
     optT.wiggle();

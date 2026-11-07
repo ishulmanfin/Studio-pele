@@ -14,7 +14,7 @@ const say = (...a) => { stopSpeech(); return voiceSay(...a); };
 import { store } from '../engine/store.js';
 import { isPlayable } from '../content/season.js';
 import { puppetAvailable, startCapture, playAsToto } from '../engine/puppet.js';
-import { VOCAB } from '../content/vocab.js';
+import { VOCAB, isFood } from '../content/vocab.js';
 import * as P from '../engine/progress.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -117,9 +117,10 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
     { id: 'balloons', tag: 'play', x: 1060, y: 420, scale: 0.8, html: () => balloonBunch(), always: true },
   ].filter((s) => s.always || isPlayable(s.id)).map((s) => { const y = s.y || 790; const el = g(st.layers.back, s.html(), s.x, y); el.classList.add(`${s.id}-door`, 'tappable'); el.setAttribute('transform', `translate(${s.x},${y}) scale(${s.scale || 1})`); return { ...s, el }; });
 
-  const mika = st.addActor('mika', 820, 930, { scale: 0.85 });
+  // מיקה בצד שמאל של הרצפה, כדי שלא תסתיר את דוכן הלהקה; בום בין בית הקפה ללהקה
+  const mika = st.addActor('mika', 205, 965, { scale: 0.8 });
   const toto = st.addActor('toto', 1250, 960, { scale: 0.62, flip: true });
-  const bum = st.addActor('bum', 330, 975, { scale: 0.6 });
+  const bum = st.addActor('bum', 655, 985, { scale: 0.58 });
   if (rest) { [mika, toto, bum].forEach((a) => a.mood('sleep')); }
   [...st.layers.back.children, ...st.layers.actors.children].forEach((el, i) => el.style.setProperty('--i', i));
   const wall = wordWall(st, players, owner);
@@ -153,7 +154,8 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
     if (now.getDay() === 5 && now.getHours() >= 12) await st.say('mika', 'שבת שלום!', 'he');
     else if (phase === 'night') await st.say('mika', 'ערב טוב! הכוכבים יצאו לסטודיו.', 'he');
     if (wall.fresh.length) await wall.celebrate();
-    if (menu?.items?.length) await st.say('mika', sisters ? 'בית הקפה שלכן מחכה. האורחים זוכרים את התפריט.' : 'בית הקפה שלך מחכה. האורחים זוכרים את התפריט.', 'he');
+    // לאחיות אין הקלטה של "בית הקפה שלכן מחכה" – מיקה מקבלת אותן בחזרה באנגלית (מוקלט)
+    if (menu?.items?.length) await (sisters ? st.say('mika', 'Welcome back!', 'en') : st.say('mika', 'בית הקפה שלך מחכה. האורחים זוכרים את התפריט.', 'he'));
     else { await st.say('mika', 'Hello!', 'en'); await st.say('mika', 'נפתח בית קפה?', 'he'); }
     booth.classList.add('beckon');
     // סיור קצר: מיקה מראה ביד כל משחק ואומרת מה עושים בו. בשלושת הביקורים הראשונים – מלא, אחר כך שאלה אחת.
@@ -197,7 +199,7 @@ export function homeScreen(root, { players, onPlay, onBack, onParents, rest = fa
   bum.el.classList.add('feed-door');
   bum.el.addEventListener('pointerup', () => {
     sfx.drum(beat++); bum.anim('bounce', 400); bump('food');
-    if (!rest) go('feed', 330, 700, bum.el);
+    if (!rest) go('feed', 655, 720, bum.el);
   });
 
   if (!rest && puppetAvailable()) setupPuppet(root, st, toto, pids);
@@ -246,7 +248,8 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 function setupPuppet(root, st, toto, pids) {
   const btn = root.querySelector('.puppet-btn');
   btn.hidden = false;
-  const known = [...new Set(pids.flatMap((id) => Object.keys(P.allItems(id))))].filter((id) => VOCAB[id]?.group);
+  // רק אוכל ושתייה: לטוטו יש הקלטות שלהם (ולא של חיות, צבעים ומספרים)
+  const known = [...new Set(pids.flatMap((id) => Object.keys(P.allItems(id))))].filter((id) => isFood(id));
   const words = known.length ? known : ['banana', 'apple', 'water'];
   let i = 0; let shown = null; let cap = null; let busy = false;
   const showWord = async () => {
@@ -344,7 +347,7 @@ function wordWall(st, players, owner) {
 // ---------- חברים שפגשו בבית הקפה מציצים ומנופפים ----------
 function friendsVisit(st, owner) {
   const met = store.creation(owner, 'cafe')?.guests || [];
-  const spots = { lulu: [1490, 700, 0.42], owl: [150, 690, 0.4] };
+  const spots = { lulu: [1490, 700, 0.42], owl: [335, 462, 0.34] }; // הינשוף יושב על גג בית הקפה
   return met.filter((id) => spots[id]).map((id) => {
     const [x, y, sc] = spots[id];
     const a = st.addActor(id, x, y, { scale: sc, id: `friend-${id}`, flip: id === 'lulu' });

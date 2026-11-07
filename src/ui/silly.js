@@ -8,7 +8,7 @@ import { studioSet } from '../art/sets.js';
 import { sfx, unlockAudio } from '../engine/voice.js';
 import { store } from '../engine/store.js';
 import * as P from '../engine/progress.js';
-import { VOCAB } from '../content/vocab.js';
+import { VOCAB, isFood } from '../content/vocab.js';
 import { LINES, TOTO, youngerItem, olderItem } from '../content/silly.js';
 import { hudHtml } from './cafe.js';
 
@@ -22,7 +22,7 @@ export async function runSilly(root, { players }, onDone) {
   root.innerHTML = `<div class="stage"></div>${hudHtml(players)}`;
   const st = createStage(root.querySelector('.stage'), { bg: studioSet() });
   const hud = root.querySelector('.hud');
-  const fun = createFun(root, { music: true });
+  const fun = createFun(root, { music: true, stage: st });
   const mika = st.addActor('mika', 260, 930, { scale: 0.85 });
   const toto = st.addActor('toto', 820, 930, { scale: 1.05 });
   for (const p of players) P.beginSession(p.id, 'silly');
@@ -31,7 +31,7 @@ export async function runSilly(root, { players }, onDone) {
   hud.querySelector('.hud-home').addEventListener('pointerup', () => {
     const c = root.querySelector('.exit-confirm'); c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
-    c.querySelector('.no').onpointerup = () => c.classList.remove('show');
+    c.querySelector('.no').onpointerup = () => { c.classList.remove('show'); st.replay().catch(() => {}); }; // ממשיכים: מיקה חוזרת על הבקשה שנקטעה
   });
   const setTurn = (pid) => hud.querySelectorAll('.turn-chip').forEach((c) => c.classList.toggle('on', c.dataset.pid === pid));
 
@@ -109,7 +109,7 @@ export async function runSilly(root, { players }, onDone) {
 
 /** תוכנית סבבים: יותר טעויות מאשר אמת (זה החלק המצחיק), ורק מילים שהילדה כבר פגשה */
 function planFor(kid, n) {
-  const met = Object.keys(P.allItems(kid.id)).filter((id) => VOCAB[id]?.group && P.stage(kid.id, id) > 0);
+  const met = Object.keys(P.allItems(kid.id)).filter((id) => isFood(id) && P.stage(kid.id, id) > 0);
   const pool = met.length >= 3 ? met : BASE.slice(0, kid.track === 'younger' ? 3 : 6);
   const truths = shuffle([false, false, true, ...Array(Math.max(0, n - 3)).fill(0).map((_, i) => i % 2 === 0)]).slice(0, n);
   const out = [];

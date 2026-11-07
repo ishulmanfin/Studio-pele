@@ -9,7 +9,7 @@ import { prop as drawProp } from '../art/puppets.js';
 import { sfx, unlockAudio, audioContext } from '../engine/voice.js';
 import { store } from '../engine/store.js';
 import * as P from '../engine/progress.js';
-import { VOCAB } from '../content/vocab.js';
+import { VOCAB, uniqueSound } from '../content/vocab.js';
 import { LINES } from '../content/balloons.js';
 import { LINES as BANDL } from '../content/band.js';
 import { hudHtml } from './cafe.js';
@@ -38,7 +38,7 @@ export async function runBalloons(root, { players }, onDone) {
   root.innerHTML = `<div class="stage"></div>${hudHtml(players)}`;
   const st = createStage(root.querySelector('.stage'), { bg: studioSet('day') });
   const hud = root.querySelector('.hud');
-  const fun = createFun(root, { music: true });
+  const fun = createFun(root, { music: true, stage: st });
   const mika = st.addActor('mika', 230, 960, { scale: 0.8 });
   const toto = st.addActor('toto', 1380, 980, { scale: 0.6, flip: true });
   for (const p of players) P.beginSession(p.id, 'balloons');
@@ -48,7 +48,7 @@ export async function runBalloons(root, { players }, onDone) {
   hud.querySelector('.hud-home').addEventListener('pointerup', () => {
     const c = root.querySelector('.exit-confirm'); c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
-    c.querySelector('.no').onpointerup = () => c.classList.remove('show');
+    c.querySelector('.no').onpointerup = () => { c.classList.remove('show'); st.replay().catch(() => {}); }; // ממשיכים: מיקה חוזרת על הבקשה שנקטעה
   });
   const setTurn = (pid) => hud.querySelectorAll('.turn-chip').forEach((c) => c.classList.toggle('on', c.dataset.pid === pid));
 
@@ -179,6 +179,6 @@ export async function runBalloons(root, { players }, onDone) {
 
 function planWords(players) {
   const met = [...new Set(players.flatMap((p) => Object.keys(P.allItems(p.id)).filter((id) => VOCAB[id]?.group && VOCAB[id]?.art !== undefined && P.stage(p.id, id) > 0)))];
-  const pool = [...new Set([...met, ...BASE])].filter((w) => VOCAB[w]);
-  return shuffle(pool).slice(0, 6);
+  const pool = uniqueSound(shuffle([...new Set([...met, ...BASE])].filter((w) => VOCAB[w])));
+  return pool.slice(0, 6);
 }

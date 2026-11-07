@@ -63,6 +63,10 @@ export const SILLY = {
 };
 
 export const word = (id) => VOCAB[id] || SILLY[id];
+/** אוכל או שתייה (בית הקפה). חיות, צבעים ומספרים הם קבוצות אחרות – לא מערבבים אותן במשפטי "I eat / I drink" */
+export const isFood = (id) => VOCAB[id]?.group === 'food' || VOCAB[id]?.group === 'drink';
+/** משאירים מילה אחת לכל צורה באנגלית (orange הפרי ו־orange הצבע נשמעים אותו דבר) */
+export const uniqueSound = (ids) => { const seen = new Set(); return ids.filter((id) => { const k = VOCAB[id]?.en?.toLowerCase(); if (!k || seen.has(k)) return false; seen.add(k); return true; }); };
 
 // פריטי הספרייה נרשמים כאן כנתונים בלבד. הם נכנסים למשחק רק אחרי אישור הורה (ראו src/engine/growth.js).
 import { PACKS } from './library.js';

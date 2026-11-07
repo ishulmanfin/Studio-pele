@@ -9,7 +9,7 @@ import { sfx, unlockAudio } from '../engine/voice.js';
 import { store } from '../engine/store.js';
 import * as P from '../engine/progress.js';
 import { createBand } from '../engine/music.js';
-import { VOCAB } from '../content/vocab.js';
+import { VOCAB, isFood } from '../content/vocab.js';
 import { LINES, COMMAND, GLOSS, FEEDBACK } from '../content/band.js';
 import { makeBandMission } from '../content/missions.js';
 import { hudHtml, svgG, showMission } from './cafe.js';
@@ -28,7 +28,7 @@ export async function runBand(root, { players }, onDone) {
   root.innerHTML = `<div class="stage"></div>${hudHtml(players)}`;
   const st = createStage(root.querySelector('.stage'), { bg: bandSet() });
   const hud = root.querySelector('.hud');
-  const fun = createFun(root, { music: false });
+  const fun = createFun(root, { music: false, stage: st });
   const started = Date.now();
   const overTime = () => (Date.now() - started) / 60000 > store.settings().sessionMinutes;
   const band = createBand();
@@ -66,7 +66,7 @@ export async function runBand(root, { players }, onDone) {
     const c = root.querySelector('.exit-confirm');
     c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
-    c.querySelector('.no').onpointerup = () => c.classList.remove('show');
+    c.querySelector('.no').onpointerup = () => { c.classList.remove('show'); st.replay().catch(() => {}); }; // ממשיכים: מיקה חוזרת על הבקשה שנקטעה
   }
   const setTurn = (pid) => hud.querySelectorAll('.turn-chip').forEach((c) => c.classList.toggle('on', c.dataset.pid === pid));
 
@@ -312,8 +312,9 @@ async function fastSlowRounds(ctx, pid, targets) {
       band.tempo(r.id);
       if (r.id === target) break;
       wrongs++; sfx.hmm();
-      await st.say('toto', `${cap(VOCAB[r.id].en)}? Hmm…`, 'en');
-      await st.say('toto', `${cap(VOCAB[target].en)}!`, 'en');
+      // לטוטו אין הקלטה של Fast/Slow – מיקה אומרת שוב את המילה (מוקלט)
+      ctx.toto?.anim('wobble', 900);
+      await st.say('mika', `${cap(VOCAB[target].en)}!`, 'en');
     }
     opts.forEach((o) => o.pulse(false));
     P.choice(pid, target, { correct: wrongs === 0, help, distractor: 'real', context: 'band:tempo' });
@@ -331,7 +332,7 @@ async function fastSlowRounds(ctx, pid, targets) {
 /** בום שר מילה מבית הקפה בקצב; אלמה נוגעת בתמונה שהוא שר (שתי אפשרויות) */
 async function songWords(ctx, pid) {
   const { st, band, bum, song } = ctx;
-  const known = Object.keys(P.allItems(pid)).filter((id) => VOCAB[id]?.group && P.stage(pid, id) > 0);
+  const known = Object.keys(P.allItems(pid)).filter((id) => isFood(id) && P.stage(pid, id) > 0);
   const pool = known.length >= 2 ? known : ['banana', 'apple'];
   const targets = P.pickTargets(pid, pool, 2, { maxNew: 0 });
   await st.say('mika', LINES.mika.bumSings, 'he');
@@ -352,7 +353,7 @@ async function songWords(ctx, pid) {
       });
       if (r.id === w) break;
       wrongs++; sfx.hmm();
-      await st.say('bum', `${cap(VOCAB[w].en)}! ${cap(VOCAB[w].en)}!`, 'en');
+      await st.say('bum', `${cap(VOCAB[w].en)}!`, 'en'); await st.say('bum', `${cap(VOCAB[w].en)}!`, 'en'); // פעמיים, מהקלטה אחת
       if (wrongs >= 2) { help = 2; opts[order.indexOf(w)].pulse(true); }
     }
     band.stop();
@@ -401,8 +402,9 @@ async function conductRound(ctx, pid, who, tempo) {
     if (r.id === tempo) break;
     twrongs++; sfx.hmm();
     band.tempo(r.id);
-    await st.say('toto', `${cap(VOCAB[r.id].en)}? Hmm…`, 'en');
+    toto.anim('wobble', 900); await st.wait(1200); // שומעים שזה לא הקצב שביקשו
     band.tempo('normal');
+    await st.say('mika', line, 'en');
   }
   const chosen = opts.find((o) => o.id === tempo);
   st.fx('sparkle', chosen.x, chosen.y); chosen.wiggle?.();
@@ -499,7 +501,7 @@ async function giveCommand(ctx, pid) {
   await st.say('mika', line, 'en');
   band.only([who === 'bum' ? 'drum' : 'xylo']); band.tempo(tempo); band.start();
   await st.wait(2600);
-  await st.say(who, LINES.toto.yay, 'en');
+  await st.say(who, who === 'bum' ? LINES.bum.boom : LINES.toto.yay, 'en'); // לבום יש הקלטה של "Boom, boom!" (לא של Yay)
   P.used(pid, ['s_play', tempo], { how: 'touch', modeled: false, context: 'band:swap' });
   await st.say('mika', FEEDBACK.gaveCommand, 'he');
   await st.wait(1500);

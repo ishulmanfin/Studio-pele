@@ -10,7 +10,7 @@ import { createBand } from '../engine/music.js';
 import { puppetAvailable, startCapture } from '../engine/puppet.js';
 import { store } from '../engine/store.js';
 import * as P from '../engine/progress.js';
-import { VOCAB } from '../content/vocab.js';
+import { VOCAB, uniqueSound } from '../content/vocab.js';
 import { LINES } from '../content/karaoke.js';
 import { LINES as BANDL } from '../content/band.js';
 import { hudHtml } from './cafe.js';
@@ -26,7 +26,7 @@ export async function runKaraoke(root, { players }, onDone) {
   root.innerHTML = `<div class="stage"></div>${hudHtml(players)}`;
   const st = createStage(root.querySelector('.stage'), { bg: bandSet() });
   const hud = root.querySelector('.hud');
-  const fun = createFun(root, { music: false });
+  const fun = createFun(root, { music: false, stage: st });
   const band = createBand();
   const mika = st.addActor('mika', 330, 900, { scale: 0.9 });
   const toto = st.addActor('toto', 1300, 930, { scale: 0.7, flip: true });
@@ -46,7 +46,7 @@ export async function runKaraoke(root, { players }, onDone) {
   hud.querySelector('.hud-home').addEventListener('pointerup', () => {
     const c = root.querySelector('.exit-confirm'); c.classList.add('show'); st.hush(); st.say('mika', HELP.exit, 'he').catch(() => {});
     c.querySelector('.yes').onpointerup = () => finish(true);
-    c.querySelector('.no').onpointerup = () => c.classList.remove('show');
+    c.querySelector('.no').onpointerup = () => { c.classList.remove('show'); st.replay().catch(() => {}); }; // ממשיכים: מיקה חוזרת על הבקשה שנקטעה
   });
   const setTurn = (pid) => hud.querySelectorAll('.turn-chip').forEach((c) => c.classList.toggle('on', c.dataset.pid === pid));
 
@@ -159,6 +159,6 @@ export async function runKaraoke(root, { players }, onDone) {
 /** מילים לשיר: מילים שהבנות כבר פגשו, ואם אין – מילים בסיסיות */
 function planWords(players, n) {
   const met = [...new Set(players.flatMap((p) => Object.keys(P.allItems(p.id)).filter((id) => VOCAB[id]?.group && P.stage(p.id, id) > 0)))];
-  const pool = met.length >= n ? met : [...new Set([...met, ...BASE])];
-  return shuffle(pool).slice(0, n);
+  const pool = uniqueSound(shuffle(met.length >= n ? met : [...new Set([...met, ...BASE])]));
+  return pool.slice(0, n);
 }
