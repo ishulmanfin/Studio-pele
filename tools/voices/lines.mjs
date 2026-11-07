@@ -143,6 +143,29 @@ import { LINES as CNL, NUMS } from '../../src/content/count.js';
 Object.values(CNL).forEach((t) => add('mika', 'he', t));
 NUMS.forEach((n) => add('mika', 'en', `${cap(VOCAB[n].en)}!`));
 
+// השיעור של מיקה
+import { L as LSL, W as LSW, TOPICS as LST, LIKES as LSK } from '../../src/content/lesson.js';
+import { UNICORNS } from '../../src/art/unicorns.js';
+{
+  const names = ['שייה', 'אלמה'];
+  const unis = Object.values(UNICORNS).map((u) => u.name);
+  for (const [k, v] of Object.entries(LSL)) {
+    if (typeof v === 'string') add('mika', /[א-ת]/.test(v) ? 'he' : 'en', v);
+    else if (Array.isArray(v)) v.forEach((t) => add('mika', 'he', t));
+    else if (k === 'homeTask') Object.values(v).forEach((t) => add('mika', 'he', t));
+  }
+  for (const n of names) { add('mika', 'he', LSL.hello(n)); add('mika', 'he', LSL.chooseUniName(n)); add('mika', 'he', LSL.bye(n)); add('mika', 'he', LSL.turnOf(n)); }
+  Object.values(LSK).forEach((l) => add('mika', 'he', LSL.remember(l.he)));
+  Object.values(LST).forEach((t) => add('mika', 'he', LSL.topic(t.he)));
+  for (const u of unis) { add('mika', 'he', LSL.pickedUni(u)); add('mika', 'he', LSL.uniHi(u)); for (const lv of [2, 3, 4, 5]) add('mika', 'he', LSL.uniGrew(u, lv)); }
+  for (const w of Object.values(LST).flatMap((t) => t.words)) {
+    const e = VOCAB[w].en;
+    for (const f of ['thisIs', 'word', 'whereEn', 'that', 'isThis', 'itIs', 'want']) add('mika', 'en', LSW[f](w, e));
+    for (const f of ['whereHe', 'found', 'here']) add('mika', 'he', LSW[f](w, e));
+    add('mika', 'he', LSW.gloss(w, e, VOCAB[w].he));
+  }
+}
+
 const saidFile = new URL('./said.json', import.meta.url);
 if (fs.existsSync(saidFile)) JSON.parse(fs.readFileSync(saidFile, 'utf8')).forEach((k) => { const [w, l, ...t] = k.split('|'); add(w, l, t.join('|')); });
 

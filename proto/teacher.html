@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>מיקה המורה · אב-טיפוס</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400..700&family=Rubik:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #2A1A5E; font-family: Rubik, Fredoka, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  #stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .bar { position: absolute; top: 12px; right: 12px; left: 12px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; pointer-events: none; }
+  .bar button { pointer-events: auto; font: 700 18px Rubik, sans-serif; color: #2A1A5E; background: #fffaf0; border: 3px solid #2A1A5E; border-radius: 999px; padding: 8px 16px; box-shadow: 0 4px 0 #2A1A5E; }
+  .bar button.main { background: #FF4F8B; color: #fff; font-size: 22px; padding: 10px 26px; }
+  .bar button:active { transform: translateY(3px); box-shadow: 0 1px 0 #2A1A5E; }
+  .render .bar { display: none; }
+  .kid { transition: transform .3s; }
+  .kid.on { transform: scale(1.12); }
+  .kid .ring { opacity: 0; transition: opacity .3s; }
+  .kid.on .ring { opacity: 1; }
+</style>
+</head>
+<body>
+<svg id="stage" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice"></svg>
+<div class="bar">
+  <button class="main" data-act="demo">▶ הדגמה</button>
+  <button data-line="a">שלום שייה, שלום אלמה</button>
+  <button data-line="b">Can I have an apple?</button>
+  <button data-line="c">"I want" זה "אני רוצה"</button>
+  <button data-pose="wave">👋</button>
+  <button data-pose="point">👉</button>
+  <button data-pose="think">🤔</button>
+  <button data-pose="listen">👂</button>
+  <button data-pose="clap">👏</button>
+  <button data-pose="cheer">🙌</button>
+</div>
+<script type="module" src="teacher-demo.js"></script>
+</body>
+</html>

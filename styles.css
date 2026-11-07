@@ -447,3 +447,11 @@ fieldset { border: 1px solid #e5d8c3; border-radius: 12px; padding: 12px 16px; d
   .gate-q { font-size: 22px; } .gate-opts { margin: 10px 0; } .gate-opts button { font-size: 22px; padding: 8px 18px; }
   .gate-cancel { font-size: 20px; padding: 6px 16px; } .gate-cancel svg { width: 36px; height: 36px; }
 }
+
+/* השיעור של מיקה */
+.parents .likes { margin: .6em 0; line-height: 2.2; }
+.parents .likes .chip { display: inline-flex; align-items: center; gap: .3em; padding: .15em .7em; border: 2px solid #2A1A5E; border-radius: 999px; background: #fffaf0; margin-inline-end: .3em; }
+.parents .likes .chip:has(input:checked) { background: #FFD23F; }
+.parents .teacher-sum { margin-top: 1em; padding: .8em 1em; border-radius: 14px; background: #F3EEFF; }
+.uni-wrap .uni-pos { transition: transform .6s cubic-bezier(.23,1,.32,1); }
+.lesson-door .lesson-board { transition: transform .2s; }

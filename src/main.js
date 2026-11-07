@@ -9,6 +9,7 @@ import { runFeed } from './ui/feed.js';
 import { runAnimals } from './ui/animals.js';
 import { runRainbow } from './ui/rainbow.js';
 import { runCount } from './ui/count.js';
+import { runLesson } from './ui/lesson.js';
 import { parentGate, parentArea } from './ui/parents.js';
 import { store } from './engine/store.js';
 import { loadVoiceManifest, unlockAudio } from './engine/voice.js';
@@ -30,7 +31,7 @@ function home() {
   homeScreen(app, { players, rest, onPlay: play, onBack: who, onParents: parents });
 }
 function play(place) {
-  const run = { cafe: runCafe, band: runBand, silly: runSilly, karaoke: runKaraoke, balloons: runBalloons, feed: runFeed, animals: runAnimals, rainbow: runRainbow, count: runCount }[place];
+  const run = { cafe: runCafe, band: runBand, silly: runSilly, karaoke: runKaraoke, balloons: runBalloons, feed: runFeed, animals: runAnimals, rainbow: runRainbow, count: runCount, lesson: runLesson }[place];
   if (!run) return home();
   const fresh = players.map((p) => store.profile(p.id));
   run(app, { players: fresh }, ({ overTime }) => { rest = overTime; home(); });
