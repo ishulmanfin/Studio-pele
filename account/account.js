@@ -8,6 +8,7 @@ const ERR = {
   exists: 'כבר יש חשבון עם האימייל הזה. אפשר להיכנס.', bad_login: 'האימייל או הסיסמה לא נכונים.', too_many: 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.',
   bad_code: 'הקוד לא נמצא או שכבר נוצל.', already_subscribed: 'יש לכם כבר מנוי פעיל.', billing_closed: 'התשלום עוד לא נפתח.',
   provider_unavailable: 'שירות התשלום לא זמין כרגע. נסו שוב מאוחר יותר.', cancel_failed: 'הביטול לא הצליח מול חברת הסליקה. נסו שוב או כתבו לנו.',
+  too_many_signups: 'נרשמו יותר מדי חשבונות מהרשת הזו. אפשר לנסות שוב בעוד שעה.', no_plan: 'צריך קוד פיילוט או מסלול כדי להפעיל שיחה חיה.',
   nothing_to_cancel: 'אין מנוי פעיל לביטול.', signup_closed: 'ההרשמה סגורה כרגע.', login_required: 'צריך להתחבר מחדש.', bad_origin: 'הבקשה נחסמה. רעננו את העמוד.',
 };
 const PW_ERR = { bad_login: 'הסיסמה לא נכונה.' };
@@ -99,7 +100,8 @@ function render() {
   const u = me.liveTalkUsage;
   $('use-day').max = u.dayCapMin; $('use-day').value = Math.min(u.todayMin, u.dayCapMin); $('use-day-t').textContent = `${u.todayMin} מתוך ${u.dayCapMin} דק׳`;
   $('use-month').max = u.monthCapMin; $('use-month').value = Math.min(u.monthMin, u.monthCapMin); $('use-month-t').textContent = `${u.monthMin} מתוך ${u.monthCapMin} דק׳`;
-  $('live-toggle').checked = me.liveTalk;
+  $('live-toggle').checked = me.liveTalk; $('live-toggle').disabled = !me.entitled && !me.liveTalk;
+  $('live-msg').textContent = me.entitled ? '' : ERR.no_plan;
 
   const paid = me.entitled && s && s.status !== 'pilot';
   $('pilot-card').hidden = paid;

@@ -57,17 +57,24 @@ export function createApp(env = process.env) {
   // A session is reserved at its full length when the token is issued. Once it must be over, ask
   // ElevenLabs how long it really ran. Never connected (404) = 0 minutes, so failed attempts cost nothing.
   let busy = false;
-  async function reconcile() {
+  // For the family asking right now (`who`), also check calls that are not due yet: if ElevenLabs says
+  // the call has ended, its real length frees the rest of the day at once (a 20-second call costs 20 s).
+  async function reconcile(who) {
     if (busy || !KEY) return; busy = true;
     try {
       const m = ilMonth(); let n = 0, changed = false;
       for (const r of readLog()) {
-        const due = Date.now() - ((r.min || SESSION_MIN) + 1) * 60e3;
-        if (!r.cid || r.cid in rec || Date.parse(r.t) > due || ilMonth(new Date(r.t)) !== m || n++ >= 5) continue;
+        if (!r.cid || r.cid in rec || ilMonth(new Date(r.t)) !== m) continue;
+        const isDue = Date.parse(r.t) <= Date.now() - ((r.min || SESSION_MIN) + 1) * 60e3;
+        if ((!isDue && !(who && whoOf(r) === who)) || n++ >= 5) continue;
         try {
           const x = await fetch(`${ELEVEN}/v1/convai/conversations/${encodeURIComponent(r.cid)}`, { headers: { 'xi-api-key': KEY }, signal: AbortSignal.timeout(4000) });
-          if (x.status === 404) { rec[r.cid] = 0; changed = true; }
-          else if (x.ok) { const s = (await x.json())?.metadata?.call_duration_secs; if (typeof s === 'number') { rec[r.cid] = Math.min(r.min, Math.round((s / 60) * 100) / 100); changed = true; } }
+          if (x.status === 404) { if (isDue) { rec[r.cid] = 0; changed = true; } }   // early 404 = not connected YET
+          else if (x.ok) {
+            const j = await x.json(); const s = j?.metadata?.call_duration_secs;
+            const ended = isDue || ['done', 'failed'].includes(j?.status);
+            if (ended && typeof s === 'number') { rec[r.cid] = Math.min(r.min, Math.round((s / 60) * 100) / 100); changed = true; }
+          }
         } catch {}
       }
       if (changed) writeFileSync(REC, JSON.stringify(rec));
@@ -116,7 +123,8 @@ export function createApp(env = process.env) {
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8'))); req.on('error', reject);
   });
   const json = async (req) => { const raw = await readBody(req); try { return raw ? JSON.parse(raw) : {}; } catch { throw Object.assign(new Error('bad json'), { code: 400 }); } };
-  const ipOf = (req) => (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?';
+  // Caddy appends the real client address as the LAST X-Forwarded-For entry; earlier entries come from the client and can be forged.
+  const ipOf = (req) => (req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket.remoteAddress || '?';
   const cookieOf = (req) => { const m = (req.headers.cookie || '').match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`)); return m && m[1]; };
   const basicLogin = (req) => { try { return Buffer.from((req.headers.authorization || '').replace(/^Basic\s+/i, ''), 'base64').toString().split(':')[0] || ''; } catch { return ''; } };
   const sessionCookie = (token, maxAge) => `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${SECURE ? '; Secure' : ''}`;
@@ -205,11 +213,12 @@ export function createApp(env = process.env) {
 
     if (path === '/api/account/signup' && M === 'POST') {
       if (!SIGNUP_ON) return send(res, 403, { error: 'signup_closed' });
-      if (!signupIp(ipOf(req))) return send(res, 429, { error: 'too_many' });
       const b = await json(req); const email = String(b.email || '').trim().toLowerCase();
       if (!validEmail(email)) return send(res, 400, { error: 'bad_email' });
       if (!validPassword(b.password)) return send(res, 400, { error: 'weak_password' });
       if (b.acceptTerms !== true || b.parentAdult !== true) return send(res, 400, { error: 'consent_required' });
+      // Counted only for complete forms, so a parent fixing typos is never locked out.
+      if (!signupIp(ipOf(req))) return send(res, 429, { error: 'too_many_signups' });
       if (db.byEmail[email]) return send(res, 409, { error: 'exists' });
       const now = new Date().toISOString();
       const acc = { id: newId('acc'), email, pw: hashPassword(b.password), created: now, liveTalk: false,
@@ -243,6 +252,7 @@ export function createApp(env = process.env) {
       const b = await json(req);
       // Turning live talk ON is a consent step: it needs the parent's password, so a child holding a signed-in tablet can't.
       if (b.enabled === true) {
+        if (!entitled(acc.sub)) return send(res, 409, { error: 'no_plan' });
         if (!loginEmail(acc.email)) return send(res, 429, { error: 'too_many' });
         if (!checkPassword(String(b.password || ''), acc.pw)) return send(res, 401, { error: 'bad_login' });
       }
@@ -324,7 +334,6 @@ export function createApp(env = process.env) {
 
   async function mikaSession(req, res) {
     if (!LIVE_ON || !KEY || !AGENT) return send(res, 503, { error: 'live talk not configured' });
-    await reconcile();
     let who, live;
     const acc = accountOf(req);
     if (acc) {
@@ -335,12 +344,17 @@ export function createApp(env = process.env) {
       who = `f:${basicLogin(req)}`; live = { sessionMin: SESSION_MIN, dayMin: LEGACY_DAY_MIN, monthMin: Infinity };
     } else return send(res, 401, { error: 'login_required' });
 
+    await reconcile(who);
     const u = usage(who);
     const sessMin = Math.min(SESSION_MIN, live.sessionMin);
     const left = Math.min(sessMin, live.dayMin - u.day, live.monthMin - u.month);
     if (u.allDay + sessMin > GLOBAL_DAY_MIN) return send(res, 503, { error: 'mika is resting' });
     if (live.monthMin - u.month < 1) return send(res, 429, { error: 'monthly limit' });
-    if (left < 1) return send(res, 429, { error: 'daily limit' });
+    if (left < 1) {
+      // A call that just ended may still be counted at its full reservation until ElevenLabs reports it: ask to retry.
+      const pending = readLog().some((r) => whoOf(r) === who && r.cid && !(r.cid in rec) && ilDay(new Date(r.t)) === ilDay());
+      return send(res, 429, pending ? { error: 'please wait', retryAfterSec: 20 } : { error: 'daily limit' });
+    }
     if (u.recent >= PER_HOUR || u.raw >= PER_HOUR * 3) return send(res, 429, { error: 'too many sessions' });
     const min = Math.floor(left * 2) / 2;   // half-minute steps
     try {

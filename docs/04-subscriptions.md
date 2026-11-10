@@ -45,7 +45,8 @@ against the provider's sandbox; the rest of the system does not change.
 
 ## The kid app (live-talk client) needs two small changes
 - `GET /api/mika-session` now answers `401 login_required`, `402 subscription_required`, `403 parent_consent_required`,
-  `429 daily limit | monthly limit`. Show a friendly "ask a parent" screen for the first three (link to `account/`
+  `429 daily limit | monthly limit | please wait` (`please wait` comes with `retryAfterSec`: a call that just ended is
+  still being measured; retry quietly, it is not "tomorrow"). Switching live talk on also needs an active plan (`409 no_plan`). Show a friendly "ask a parent" screen for the first three (link to `account/`
   behind the parent gate) and Mika's "let's talk tomorrow" for the 429s.
 - The success answer has `maxSec` (180 or less). End the call by then (today the client allows 8 min). Also set the
   ElevenLabs agent's max conversation duration to 180 s as the hard stop.
@@ -56,6 +57,6 @@ against the provider's sandbox; the rest of the system does not change.
 - App-store billing (only if a store build happens; Apple requires In-App Purchase there).
 
 ## Tests
-`npm run test:api` : 12 tests (sign-up rules, login + brute-force lockout, CSRF, live-talk gating and caps,
+`npm run test:api` : 13 tests (sign-up rules, login + brute-force lockout, CSRF, live-talk gating and caps,
 reconciliation, billing closed by default, mock checkout → pay → cancel, signed/idempotent webhooks with grace period,
-account deletion, password change + admin reset, legacy fallback, retention).
+account deletion, password change + admin reset, legacy fallback, retention, signup limiter).

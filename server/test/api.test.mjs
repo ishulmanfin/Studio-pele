@@ -15,7 +15,7 @@ before(async () => {
   eleven = http.createServer((req, res) => {
     if (req.url.startsWith('/v1/convai/conversation/token')) { res.end(JSON.stringify({ token: 'tok', conversation_id: `c${++n}` })); return; }
     const m = req.url.match(/conversations\/(c\d+)/);
-    if (m && m[1] in durations) { res.end(JSON.stringify({ metadata: { call_duration_secs: durations[m[1]] } })); return; }
+    if (m && m[1] in durations) { res.end(JSON.stringify({ status: 'done', metadata: { call_duration_secs: durations[m[1]] } })); return; }
     res.writeHead(404); res.end('{}');
   });
   elevenUrl = await listen(eleven);
@@ -81,6 +81,7 @@ test('live talk needs a subscription AND the parent switch; then caps 3 min/day'
   assert.equal((await s.req('GET', '/api/mika-session')).status, 401);
   await s.req('POST', '/api/account/signup', SIGNUP);
   assert.equal((await s.req('GET', '/api/mika-session')).body.error, 'subscription_required');
+  assert.equal((await s.req('POST', '/api/account/live-talk', { enabled: true, password: SIGNUP.password })).body.error, 'no_plan');
   const { codes } = await s.adm('/pilot-codes', { count: 2 });
   assert.equal((await s.req('POST', '/api/pilot/redeem', { code: 'YALLA-NOPE' })).status, 404);
   const red = await s.req('POST', '/api/pilot/redeem', { code: codes[0].toLowerCase() });
@@ -91,9 +92,15 @@ test('live talk needs a subscription AND the parent switch; then caps 3 min/day'
   assert.equal((await s.req('POST', '/api/account/live-talk', { enabled: true, password: SIGNUP.password })).body.liveTalk, true);
   const ok = await s.req('GET', '/api/mika-session');
   assert.equal(ok.status, 200); assert.equal(ok.body.token, 'tok'); assert.equal(ok.body.maxSec, 180);
+  const again = await s.req('GET', '/api/mika-session');   // still in progress at ElevenLabs: retry, not "tomorrow"
+  assert.equal(again.body.error, 'please wait'); assert.equal(again.body.retryAfterSec, 20);
+  durations.c1 = 20;                                       // the call ended after 20 s
+  const third = await s.req('GET', '/api/mika-session');
+  assert.equal(third.status, 200); assert.equal(third.body.maxSec, 150);
+  durations.c2 = 150; durations.c1 = 20;
   assert.equal((await s.req('GET', '/api/mika-session')).body.error, 'daily limit');
   const me = (await s.req('GET', '/api/account/me')).body;
-  assert.deepEqual([me.liveTalkUsage.todayMin, me.liveTalkUsage.dayCapMin, me.liveTalkUsage.monthCapMin], [3, 3, 30]);
+  assert.deepEqual([me.liveTalkUsage.todayMin, me.liveTalkUsage.dayCapMin, me.liveTalkUsage.monthCapMin], [2.83, 3, 30]);
   // A used code cannot be used again, even by another family.
   await s.req('POST', '/api/account/logout', {});
   await s.req('POST', '/api/account/signup', { ...SIGNUP, email: 'b@example.com' });
@@ -203,7 +210,7 @@ test('admin port refuses requests without the token; legacy family login still w
   const basic = { authorization: 'Basic ' + Buffer.from('yalla:pw').toString('base64') };
   const r = await s.req('GET', '/api/mika-session', undefined, basic);
   assert.equal(r.status, 200);
-  assert.equal((await s.req('GET', '/api/mika-session', undefined, basic)).body.error, 'daily limit');
+  assert.equal((await s.req('GET', '/api/mika-session', undefined, basic)).body.error, 'please wait', 'call not reported ended yet');
   s.stop();
   const t = await boot();
   assert.equal((await t.req('GET', '/api/mika-session', undefined, basic)).status, 401, 'no legacy by default');
@@ -222,4 +229,12 @@ test('retention: audit older than 90 days and minutes older than 12 months are d
   assert.ok(!readFileSync(`${s.dir}/sessions.jsonl`, 'utf8').includes('c1'));
   assert.deepEqual(JSON.parse(readFileSync(`${s.dir}/reconciled.json`, 'utf8')), { c2: 2 });
   t.stop();
+});
+
+test('signup limit counts only complete forms and uses the address Caddy appended', async () => {
+  const s = await boot();
+  for (let i = 0; i < 8; i++) await s.req('POST', '/api/account/signup', { ...SIGNUP, password: 'x' }, { 'x-forwarded-for': '9.9.9.9' });
+  for (let i = 0; i < 5; i++) assert.equal((await s.req('POST', '/api/account/signup', { ...SIGNUP, email: `p${i}@example.com` }, { 'x-forwarded-for': `${i}.1.1.1, 9.9.9.9` })).status, 201);
+  assert.equal((await s.req('POST', '/api/account/signup', { ...SIGNUP, email: 'p9@example.com' }, { 'x-forwarded-for': '7.7.7.7, 9.9.9.9' })).body.error, 'too_many_signups');
+  s.stop();
 });
