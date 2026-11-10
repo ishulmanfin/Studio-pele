@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>YALLA KIDS · אזור ההורים</title>
+<link rel="stylesheet" href="account.css">
+<script type="module" src="account.js"></script>
+</head>
+<body>
+<main id="app" aria-live="polite">
+
+  <!-- 1. Parent gate: stops a young child before anything else -->
+  <section id="gate" class="card narrow" hidden>
+    <h1>אזור ההורים</h1>
+    <p class="muted">כדי להמשיך, מבוגר צריך לפתור את התרגיל.</p>
+    <p class="question" id="gate-q"></p>
+    <output id="gate-input" class="pin" aria-label="התשובה"></output>
+    <div class="pad" id="gate-pad" role="group" aria-label="מקלדת מספרים"></div>
+    <p class="error" id="gate-msg" role="alert"></p>
+  </section>
+
+  <!-- 2. Sign in / sign up -->
+  <section id="auth" class="card narrow" hidden>
+    <h1>החשבון של המשפחה</h1>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-login" aria-selected="true">כניסה</button>
+      <button role="tab" id="tab-signup" aria-selected="false">הרשמה</button>
+    </div>
+    <form id="f-auth" novalidate>
+      <label>אימייל של ההורה<input name="email" type="email" autocomplete="email" inputmode="email" dir="ltr" required></label>
+      <label>סיסמה<input name="password" type="password" autocomplete="current-password" dir="ltr" minlength="8" required>
+        <small class="muted signup-only" hidden>לפחות 8 תווים.</small></label>
+      <div class="signup-only" hidden>
+        <label class="check"><input type="checkbox" name="parentAdult"> אני ההורה או האפוטרופוס של הילד, ואני מעל גיל 18.</label>
+        <label class="check"><input type="checkbox" name="acceptTerms"> קראתי ואני מסכים/ה ל<a href="terms.html" target="_blank" rel="noopener">תנאי המנוי</a> ול<a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a>.</label>
+      </div>
+      <button class="primary" type="submit" id="auth-submit">כניסה</button>
+      <p class="error" id="auth-msg" role="alert"></p>
+    </form>
+    <p class="muted small">אנחנו שומרים רק אימייל, סיסמה מוצפנת ומצב המנוי. שום מידע על הילד לא נשמר אצלנו.</p>
+  </section>
+
+  <!-- 3. Dashboard -->
+  <section id="dash" hidden>
+    <header class="top">
+      <h1>אזור ההורים</h1>
+      <span class="muted" id="who" dir="ltr"></span>
+    </header>
+    <p class="notice" id="notice" role="status" hidden></p>
+
+    <article class="card">
+      <h2>המנוי</h2>
+      <p class="status" id="sub-status"></p>
+      <p class="muted" id="sub-detail"></p>
+      <div id="cancel-box" hidden>
+        <button class="link danger" id="cancel-open">ביטול המנוי</button>
+        <div id="cancel-confirm" class="confirm" hidden>
+          <p>לבטל? לא נחייב אותך יותר. הגישה נשארת עד <b id="cancel-until"></b>.</p>
+          <button class="danger" id="cancel-yes">כן, לבטל</button>
+          <button class="ghost" id="cancel-no">לא, להשאיר</button>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>שיחה חיה עם מיקה</h2>
+      <div class="meter"><span>היום</span><progress id="use-day" max="3" value="0"></progress><b id="use-day-t"></b></div>
+      <div class="meter"><span>החודש</span><progress id="use-month" max="30" value="0"></progress><b id="use-month-t"></b></div>
+      <label class="switch">
+        <input type="checkbox" id="live-toggle" role="switch">
+        <span>אני מאשר/ת שיחה חיה עם מיקה</span>
+      </label>
+      <details class="muted small">
+        <summary>מה זה אומר?</summary>
+        הקול של הילד עובר בזמן אמת לספק הקול שלנו (ElevenLabs) כדי שמיקה תוכל לענות. השיחה לא מוקלטת ולא נשמרת, ושם הילד לא נשלח.
+        עד 3 דקות ביום ו-30 דקות בחודש. אפשר לכבות בכל רגע.
+      </details>
+    </article>
+
+    <article class="card" id="pilot-card">
+      <h2>קוד פיילוט</h2>
+      <p class="muted">קיבלתם קוד הצטרפות לפיילוט? הזינו אותו כאן לגישה חינמית.</p>
+      <form id="f-pilot" class="row" novalidate>
+        <input name="code" dir="ltr" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="YALLA-XXXXXX" aria-label="קוד פיילוט" required>
+        <button class="primary" type="submit">הפעלה</button>
+      </form>
+      <p class="error" id="pilot-msg" role="alert"></p>
+    </article>
+
+    <article class="card" id="plans-card">
+      <h2>מסלולים</h2>
+      <p class="muted" id="plans-closed" hidden>ההרשמה בתשלום תיפתח אחרי תקופת הפיילוט. עד אז לא נחייב אף אחד.</p>
+      <div class="plans" id="plans"></div>
+      <p class="muted small">המחירים כוללים מע"מ. מתחדש אוטומטית, ואפשר לבטל בכל רגע מהעמוד הזה בלחיצה אחת.</p>
+      <p class="error" id="plans-msg" role="alert"></p>
+    </article>
+
+    <article class="card">
+      <h2>החשבון</h2>
+      <details>
+        <summary>שינוי סיסמה</summary>
+        <form id="f-pass" novalidate>
+          <label>סיסמה נוכחית<input name="oldPassword" type="password" autocomplete="current-password" dir="ltr" required></label>
+          <label>סיסמה חדשה<input name="newPassword" type="password" autocomplete="new-password" dir="ltr" minlength="8" required></label>
+          <button class="primary" type="submit">שמירה</button>
+          <p class="error" id="pass-msg" role="alert"></p>
+        </form>
+      </details>
+      <details>
+        <summary class="danger">מחיקת החשבון</summary>
+        <form id="f-delete" novalidate>
+          <p>המחיקה סופית: האימייל, הסיסמה והמנוי נמחקים מיד, וחיוב עתידי מבוטל.</p>
+          <label>סיסמה לאישור<input name="password" type="password" autocomplete="current-password" dir="ltr" required></label>
+          <button class="danger" type="submit">למחוק לצמיתות</button>
+          <p class="error" id="delete-msg" role="alert"></p>
+        </form>
+      </details>
+      <button class="ghost" id="logout">יציאה</button>
+    </article>
+
+    <footer class="muted small"><a href="terms.html" target="_blank" rel="noopener">תנאי המנוי</a> · <a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a></footer>
+  </section>
+
+</main>
+</body>
+</html>
