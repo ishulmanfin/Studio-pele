@@ -55,6 +55,6 @@ against the provider's sandbox; the rest of the system does not change.
 - App-store billing (only if a store build happens; Apple requires In-App Purchase there).
 
 ## Tests
-`node --test server/test/` : 11 tests (sign-up rules, login + brute-force lockout, CSRF, live-talk gating and caps,
+`npm run test:api` : 11 tests (sign-up rules, login + brute-force lockout, CSRF, live-talk gating and caps,
 reconciliation, billing closed by default, mock checkout → pay → cancel, signed/idempotent webhooks with grace period,
 account deletion, password change + admin reset, legacy fallback).
