@@ -9,11 +9,12 @@ and a free pilot; until then families get in with free pilot codes.
 | Parent sign-up / login (email + password, scrypt, HttpOnly session cookie, 30 days) | `server/yalla-api.mjs` |
 | Consent at sign-up: parent is 18+ and accepts terms + privacy (versions stored with the date) | same |
 | Plans: free pilot (60 days by code), monthly 39 ₪, yearly 349 ₪ (incl. VAT) | `server/lib/plans.mjs` |
-| Live talk only with an active plan AND the parent's live-talk switch (off by default) | `mikaSession()` |
+| Live talk only with an active plan AND the parent's live-talk switch (off by default; switching it ON needs the password) | `mikaSession()` |
 | Caps per family: 3 min per call, 3 min per Israel day, 30 min per month; plus the global daily guard | same |
 | Real minutes reconciled from ElevenLabs; a short call frees the rest of the day | `reconcile()` |
 | Manage: plan status, minutes used, pilot code, choose plan, cancel in one tap, change password, delete account | `account/` |
-| Parent gate on the parents' area (sum in words, number pad, 2 wrong = 60 s lock) | `account/account.js` |
+| Parent gate on the parents' area (sum in words, number pad, 2 wrong = 60 s lock that survives a reload) | `account/account.js` |
+| Retention: audit log 90 days, call minutes 12 months, pruned at start and daily; Caddy access log 30 days (snippet) | `prune()` |
 | Payment provider interface + full mock; webhooks signed (HMAC), idempotent, audited | `server/lib/billing.mjs` |
 | Admin CLI on a local-only port: pilot codes, accounts, grant, password reset | `server/admin.mjs` |
 | Draft terms (cancellation rules) and privacy notice, marked for lawyer review | `account/terms.html`, `account/privacy.html` |
@@ -55,6 +56,6 @@ against the provider's sandbox; the rest of the system does not change.
 - App-store billing (only if a store build happens; Apple requires In-App Purchase there).
 
 ## Tests
-`npm run test:api` : 11 tests (sign-up rules, login + brute-force lockout, CSRF, live-talk gating and caps,
+`npm run test:api` : 12 tests (sign-up rules, login + brute-force lockout, CSRF, live-talk gating and caps,
 reconciliation, billing closed by default, mock checkout → pay → cancel, signed/idempotent webhooks with grace period,
-account deletion, password change + admin reset, legacy fallback).
+account deletion, password change + admin reset, legacy fallback, retention).

@@ -75,3 +75,4 @@ summary.danger { border: 0; color: var(--danger); background: none; }
 .confirm p { flex-basis: 100%; margin: 0; }
 footer { text-align: center; margin-top: 20px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+[hidden] { display: none !important; }

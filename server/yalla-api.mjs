@@ -75,6 +75,23 @@ export function createApp(env = process.env) {
   }
   const timer = setInterval(reconcile, 120e3); timer.unref();
 
+  // Retention (stated in the privacy notice): call minutes 12 months, audit log 90 days. Runs at start and daily.
+  const AUDIT_DAYS = num('AUDIT_KEEP_DAYS', 90), MINUTES_DAYS = num('MINUTES_KEEP_DAYS', 365);
+  function prune() {
+    const keep = (file, days) => {
+      if (!existsSync(file)) return;
+      const cut = Date.now() - days * 864e5; const lines = readFileSync(file, 'utf8').split('\n').filter(Boolean);
+      const kept = lines.filter((l) => { try { return Date.parse(JSON.parse(l).t) >= cut; } catch { return false; } });
+      if (kept.length !== lines.length) writeFileSync(file, kept.map((l) => l + '\n').join(''), { mode: 0o600 });
+      return kept;
+    };
+    keep(`${DIR}/audit.jsonl`, AUDIT_DAYS);
+    const kept = keep(LOG, MINUTES_DAYS);
+    if (kept) { const live = new Set(kept.map((l) => { try { return JSON.parse(l).cid; } catch { return null; } })); let ch = false;
+      for (const k of Object.keys(rec)) if (!live.has(k)) { delete rec[k]; ch = true; } if (ch) writeFileSync(REC, JSON.stringify(rec)); }
+  }
+  prune(); const pruneTimer = setInterval(prune, 864e5); pruneTimer.unref();
+
   function usage(who) {
     const d = ilDay(), m = ilMonth(), hourAgo = Date.now() - 3600e3;
     let day = 0, month = 0, allDay = 0, recent = 0, raw = 0;
@@ -223,7 +240,13 @@ export function createApp(env = process.env) {
     if (path === '/api/account/me' && M === 'GET') return send(res, 200, view(acc));
 
     if (path === '/api/account/live-talk' && M === 'POST') {
-      const b = await json(req); acc.liveTalk = b.enabled === true;
+      const b = await json(req);
+      // Turning live talk ON is a consent step: it needs the parent's password, so a child holding a signed-in tablet can't.
+      if (b.enabled === true) {
+        if (!loginEmail(acc.email)) return send(res, 429, { error: 'too_many' });
+        if (!checkPassword(String(b.password || ''), acc.pw)) return send(res, 401, { error: 'bad_login' });
+      }
+      acc.liveTalk = b.enabled === true;
       acc.consent.liveTalkAt = acc.liveTalk ? new Date().toISOString() : null; save(); audit({ ev: 'live_talk_consent', aid: acc.id, on: acc.liveTalk });
       return send(res, 200, view(acc));
     }
@@ -364,7 +387,7 @@ export function createApp(env = process.env) {
   const wrap = (fn) => async (req, res) => {
     try { await fn(req, res); } catch (e) { if (!res.headersSent) send(res, e.code === 413 ? 413 : e.code === 400 ? 400 : 500, { error: e.code === 413 ? 'too large' : e.code === 400 ? 'bad json' : 'server error' }); }
   };
-  return { server: http.createServer(wrap(route)), adminServer: http.createServer(wrap(admin)), db, close: () => clearInterval(timer) };
+  return { server: http.createServer(wrap(route)), adminServer: http.createServer(wrap(admin)), db, close: () => { clearInterval(timer); clearInterval(pruneTimer); }, prune };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {

@@ -34,8 +34,8 @@
       <label>סיסמה<input name="password" type="password" autocomplete="current-password" dir="ltr" minlength="8" required>
         <small class="muted signup-only" hidden>לפחות 8 תווים.</small></label>
       <div class="signup-only" hidden>
-        <label class="check"><input type="checkbox" name="parentAdult"> אני ההורה או האפוטרופוס של הילד, ואני מעל גיל 18.</label>
-        <label class="check"><input type="checkbox" name="acceptTerms"> קראתי ואני מסכים/ה ל<a href="terms.html" target="_blank" rel="noopener">תנאי המנוי</a> ול<a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a>.</label>
+        <label class="check"><input type="checkbox" name="parentAdult"> אני ההורה או האפוטרופוס של הילד, ואני בגיר (בן 18 ומעלה).</label>
+        <label class="check"><input type="checkbox" name="acceptTerms"> קראתי ואני מסכים/ה ל<a href="terms.html" target="_blank" rel="noopener">תנאי השימוש</a> ול<a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a>.</label>
       </div>
       <button class="primary" type="submit" id="auth-submit">כניסה</button>
       <p class="error" id="auth-msg" role="alert"></p>
@@ -58,7 +58,7 @@
       <div id="cancel-box" hidden>
         <button class="link danger" id="cancel-open">ביטול המנוי</button>
         <div id="cancel-confirm" class="confirm" hidden>
-          <p>לבטל? לא נחייב אותך יותר. הגישה נשארת עד <b id="cancel-until"></b>.</p>
+          <p>לבטל? לא נחייב אתכם יותר. הגישה נשארת עד <b id="cancel-until"></b>.</p>
           <button class="danger" id="cancel-yes">כן, לבטל</button>
           <button class="ghost" id="cancel-no">לא, להשאיר</button>
         </div>
@@ -73,6 +73,12 @@
         <input type="checkbox" id="live-toggle" role="switch">
         <span>אני מאשר/ת שיחה חיה עם מיקה</span>
       </label>
+      <form id="f-live" class="row" novalidate hidden>
+        <input name="password" type="password" autocomplete="current-password" dir="ltr" placeholder="הסיסמה שלכם" aria-label="סיסמה לאישור שיחה חיה" required>
+        <button class="primary" type="submit">אישור</button>
+        <button class="ghost" type="button" id="live-cancel">ביטול</button>
+      </form>
+      <p class="error" id="live-msg" role="alert"></p>
       <details class="muted small">
         <summary>מה זה אומר?</summary>
         הקול של הילד עובר בזמן אמת לספק הקול שלנו (ElevenLabs) כדי שמיקה תוכל לענות. השיחה לא מוקלטת ולא נשמרת, ושם הילד לא נשלח.
@@ -121,7 +127,7 @@
       <button class="ghost" id="logout">יציאה</button>
     </article>
 
-    <footer class="muted small"><a href="terms.html" target="_blank" rel="noopener">תנאי המנוי</a> · <a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a></footer>
+    <footer class="muted small"><a href="terms.html" target="_blank" rel="noopener">תנאי השימוש</a> · <a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a></footer>
   </section>
 
 </main>

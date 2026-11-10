@@ -86,7 +86,9 @@ test('live talk needs a subscription AND the parent switch; then caps 3 min/day'
   const red = await s.req('POST', '/api/pilot/redeem', { code: codes[0].toLowerCase() });
   assert.equal(red.status, 200); assert.equal(red.body.subscription.status, 'pilot'); assert.equal(red.body.entitled, true);
   assert.equal((await s.req('GET', '/api/mika-session')).body.error, 'parent_consent_required');
-  await s.req('POST', '/api/account/live-talk', { enabled: true });
+  assert.equal((await s.req('POST', '/api/account/live-talk', { enabled: true })).status, 401, 'password needed to switch on');
+  assert.equal((await s.req('POST', '/api/account/live-talk', { enabled: true, password: 'wrong pass' })).status, 401);
+  assert.equal((await s.req('POST', '/api/account/live-talk', { enabled: true, password: SIGNUP.password })).body.liveTalk, true);
   const ok = await s.req('GET', '/api/mika-session');
   assert.equal(ok.status, 200); assert.equal(ok.body.token, 'tok'); assert.equal(ok.body.maxSec, 180);
   assert.equal((await s.req('GET', '/api/mika-session')).body.error, 'daily limit');
@@ -103,7 +105,7 @@ test('a short real call frees the rest of the day; the month cap holds at 30 min
   const s = await boot();
   await s.req('POST', '/api/account/signup', SIGNUP);
   await s.adm('/grant', { email: SIGNUP.email, plan: 'monthly' });
-  await s.req('POST', '/api/account/live-talk', { enabled: true });
+  await s.req('POST', '/api/account/live-talk', { enabled: true, password: SIGNUP.password });
   const aid = Object.keys(s.app.db.accounts)[0];
   // Seed the log: earlier this month 28.5 minutes, plus a call today that really lasted 60 s.
   const old = new Date(Date.now() - 20 * 60e3).toISOString();
@@ -205,5 +207,19 @@ test('admin port refuses requests without the token; legacy family login still w
   s.stop();
   const t = await boot();
   assert.equal((await t.req('GET', '/api/mika-session', undefined, basic)).status, 401, 'no legacy by default');
+  t.stop();
+});
+
+test('retention: audit older than 90 days and minutes older than 12 months are deleted', async () => {
+  const s = await boot();
+  const old = (d) => new Date(Date.now() - d * 864e5).toISOString();
+  writeFileSync(`${s.dir}/audit.jsonl`, [old(100), old(10)].map((t) => JSON.stringify({ t, ev: 'x' })).join('\n') + '\n');
+  writeFileSync(`${s.dir}/sessions.jsonl`, [[old(400), 'c1'], [old(100), 'c2']].map(([t, cid]) => JSON.stringify({ t, who: 'a:x', min: 3, cid })).join('\n') + '\n');
+  writeFileSync(`${s.dir}/reconciled.json`, '{"c1":1,"c2":2}');
+  s.stop();
+  const t = await boot({ DATA_DIR: s.dir });   // prune runs at start
+  assert.equal(readFileSync(`${s.dir}/audit.jsonl`, 'utf8').trim().split('\n').length, 1);
+  assert.ok(!readFileSync(`${s.dir}/sessions.jsonl`, 'utf8').includes('c1'));
+  assert.deepEqual(JSON.parse(readFileSync(`${s.dir}/reconciled.json`, 'utf8')), { c2: 2 });
   t.stop();
 });
