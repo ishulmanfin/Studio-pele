@@ -274,3 +274,24 @@ test('phone account: stored in E.164; admin finds it by phone', async () => {
   const acc = (await s.adm('/accounts')).accounts[0]; assert.equal(acc.phone, '+972541112222');
   s.stop();
 });
+
+test('support hooks: compensate adds 3 minutes today, grantDays extends, health', async () => {
+  const s = await boot();
+  const c = await s.req('POST', '/api/auth/code', { phone: '0533334444' });
+  await s.req('POST', '/api/auth/verify', { phone: '0533334444', code: c.body.devCode, acceptTerms: true, parentAdult: true });
+  await s.adm('/grant', { phone: '0533334444', plan: 'pilot' });
+  const cc = await s.req('POST', '/api/account/confirm-code', {});
+  await s.req('POST', '/api/account/live-talk', { enabled: true, code: cc.body.devCode });
+  durations.c_dummy = 0;
+  const first = await s.req('GET', '/api/mika-session'); assert.equal(first.status, 200);
+  const blocked = await s.req('GET', '/api/mika-session'); assert.equal(blocked.status, 429);
+  // The hooks are exercised directly through a fake support module surface.
+  const aid = Object.keys(s.app.db.accounts)[0];
+  assert.equal(s.app.hooks.compensate(aid), true);
+  assert.equal((await s.req('GET', '/api/account/me')).body.liveTalkUsage.dayCapMin, 6);
+  const before = Date.parse(s.app.db.accounts[aid].sub.periodEnd);
+  const after = Date.parse(s.app.hooks.grantDays(aid, 7));
+  assert.ok(Math.abs(after - before - 7 * 864e5) < 5000);
+  assert.deepEqual(s.app.hooks.health(), { api: true, liveTalk: true, billing: false });
+  s.stop();
+});

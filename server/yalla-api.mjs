@@ -61,12 +61,35 @@ export function createApp(env = process.env) {
   // Read-only account facts for other modules (support). Phone is masked; no child data exists to share.
   function facts(aid) {
     const a = db.accounts[aid]; if (!a) return null;
-    const u = usage(`a:${a.id}`), live = PLANS[a.sub?.plan]?.live || LIVE;
+    const u = usage(`a:${a.id}`), live = PLANS[a.sub?.plan]?.live || LIVE, extra = bonusMin(a);
     return { id: a.id, phone: maskPhone(a.phone), email: a.email || null, created: a.created, liveTalk: !!a.liveTalk,
       plan: a.sub?.plan || null, status: a.sub?.status || null, periodEnd: a.sub?.periodEnd || null, entitled: entitled(a.sub),
-      usage: { todayMin: u.day, monthMin: u.month, dayCapMin: live.dayMin, monthCapMin: live.monthMin } };
+      usage: { todayMin: u.day, monthMin: u.month, dayCapMin: live.dayMin + extra, monthCapMin: live.monthMin + extra } };
   }
-  const support = supportMod?.createSupport?.({ dir: DIR, env, audit, facts, listAccountIds: () => Object.keys(db.accounts) }) || null;
+  // Today's extra live-talk minutes given by support as an apology (resets the next Israel day).
+  const bonusMin = (a) => (a?.bonus?.day === ilDay() ? a.bonus.min : 0);
+  const hooks = {
+    async sendSms(aid, text) {
+      const a = db.accounts[aid]; if (!a?.phone) return false;
+      const d = ilDay(); if (smsDay.d !== d) smsDay = { d, n: 0 };
+      if (smsDay.n >= SMS_DAY_CAP) return false;
+      try { await sms.send(a.phone, String(text).slice(0, 300)); smsDay.n++; return true; } catch { return false; }
+    },
+    grantDays(aid, days) {
+      const a = db.accounts[aid]; days = Math.min(Math.max(+days || 0, 1), 90); if (!a) return null;
+      const s0 = a.sub && entitled(a.sub) ? a.sub : { plan: 'pilot', status: 'pilot', cancelAtPeriodEnd: false };
+      a.sub = { ...s0, periodEnd: addDays(s0.periodEnd, days) }; save(); audit({ ev: 'support_grant_days', aid, days });
+      return a.sub.periodEnd;
+    },
+    compensate(aid, min = 3) {
+      const a = db.accounts[aid]; if (!a) return false;
+      a.bonus = { day: ilDay(), min: Math.min(bonusMin(a) + Math.min(+min || 3, 6), 6) }; save(); audit({ ev: 'support_compensate', aid, min: a.bonus.min });
+      return true;
+    },
+    health: () => ({ api: true, liveTalk: LIVE_ON && !!KEY, billing: BILLING_ON }),
+  };
+  const support = supportMod?.createSupport?.({ dir: DIR, env, audit, facts, listAccountIds: () => Object.keys(db.accounts), ...hooks }) || null;
+  const care = (aid, what) => { try { support?.care?.(aid, what); } catch {} };
   if (!db.byPhone) db.byPhone = {};
 
   // ---------- live-talk usage ----------
@@ -178,7 +201,7 @@ export function createApp(env = process.env) {
       phone: maskPhone(acc.phone), email: acc.email || null, created: acc.created, liveTalk: !!acc.liveTalk,
       subscription: sub && { plan: sub.plan, planName: plan?.name, status: sub.status, periodEnd: sub.periodEnd, cancelAtPeriodEnd: !!sub.cancelAtPeriodEnd },
       entitled: entitled(sub),
-      liveTalkUsage: { todayMin: u.day, monthMin: u.month, dayCapMin: live.dayMin, monthCapMin: live.monthMin },
+      liveTalkUsage: { todayMin: u.day, monthMin: u.month, dayCapMin: live.dayMin + bonusMin(acc), monthCapMin: live.monthMin + bonusMin(acc) },
       billingOpen: BILLING_ON,
     };
   }
@@ -201,7 +224,7 @@ export function createApp(env = process.env) {
         providerRef: ev.providerRef || prev.providerRef, cancelAtPeriodEnd: false, since: prev.since || new Date().toISOString() };
       if (co) co.done = true;
     } else if (ev.type === 'failed') {
-      if (prev.status === 'active') acc.sub = { ...prev, status: 'past_due' };
+      if (prev.status === 'active') { acc.sub = { ...prev, status: 'past_due' }; care(acc.id, 'payment_failed'); }
     } else if (ev.type === 'canceled') {
       if (prev.status) acc.sub = { ...prev, status: 'canceled', cancelAtPeriodEnd: true };
     } else return { ok: false };
@@ -356,7 +379,7 @@ export function createApp(env = process.env) {
       if (acc.email) delete db.byEmail[acc.email]; if (acc.phone) delete db.byPhone[acc.phone]; delete db.accounts[acc.id];
       for (const [k, v] of Object.entries(db.sessions)) if (v.aid === acc.id) delete db.sessions[k];
       for (const [k, v] of Object.entries(db.checkouts)) if (v.aid === acc.id) delete db.checkouts[k];
-      save(); audit({ ev: 'account_deleted', aid: acc.id });
+      save(); audit({ ev: 'account_deleted', aid: acc.id }); try { support?.forget?.(acc.id); } catch {}
       return send(res, 200, { ok: true }, { 'set-cookie': sessionCookie('', 0) });
     }
 
@@ -416,7 +439,8 @@ export function createApp(env = process.env) {
     if (acc) {
       if (!entitled(acc.sub)) return send(res, 402, { error: 'subscription_required' });
       if (!acc.liveTalk) return send(res, 403, { error: 'parent_consent_required' });
-      who = `a:${acc.id}`; live = PLANS[acc.sub.plan]?.live || LIVE;
+      who = `a:${acc.id}`; const base = PLANS[acc.sub.plan]?.live || LIVE, extra = bonusMin(acc);
+      live = { ...base, dayMin: base.dayMin + extra, monthMin: base.monthMin + extra };
     } else if (LEGACY && basicLogin(req)) {
       who = `f:${basicLogin(req)}`; live = { sessionMin: SESSION_MIN, dayMin: LEGACY_DAY_MIN, monthMin: Infinity };
     } else return send(res, 401, { error: 'login_required' });
@@ -436,16 +460,18 @@ export function createApp(env = process.env) {
     const min = Math.floor(left * 2) / 2;   // half-minute steps
     try {
       const r = await fetch(`${ELEVEN}/v1/convai/conversation/token?agent_id=${encodeURIComponent(AGENT)}`, { headers: { 'xi-api-key': KEY }, signal: AbortSignal.timeout(8000) });
-      if (!r.ok) return send(res, 502, { error: `upstream ${r.status}` });
+      if (!r.ok) { if (acc) care(acc.id, 'live_talk_failed'); return send(res, 502, { error: `upstream ${r.status}` }); }
       const { token, conversation_id: cid } = await r.json();
       appendFileSync(LOG, JSON.stringify({ t: new Date().toISOString(), who, min, ...(cid ? { cid } : {}) }) + '\n');
       // maxSec: the client must end the call by then (the agent's own max duration is the hard stop).
       return send(res, 200, { token, maxSec: Math.round(min * 60) });
-    } catch { return send(res, 502, { error: 'upstream unreachable' }); }
+    } catch { if (acc) care(acc.id, 'live_talk_failed'); return send(res, 502, { error: 'upstream unreachable' }); }
   }
 
   // ---------- admin (127.0.0.1:ADMIN_PORT only, bearer token) ----------
   async function admin(req, res) {
+    // The support console page itself holds no data; it asks for the token and calls /support/* with it.
+    if (req.method === 'GET' && new URL(req.url, 'http://x').pathname === '/support/console' && support) return support.admin(req, res, '/support/console', { send, json });
     const tok = env.ADMIN_TOKEN;
     if (!tok || req.headers.authorization !== `Bearer ${tok}`) return send(res, 401, { error: 'unauthorized' });
     if (new URL(req.url, 'http://x').pathname.startsWith('/support/') && support) return support.admin(req, res, new URL(req.url, 'http://x').pathname, { send, json });
@@ -479,7 +505,7 @@ export function createApp(env = process.env) {
   const wrap = (fn) => async (req, res) => {
     try { await fn(req, res); } catch (e) { if (!res.headersSent) send(res, e.code === 413 ? 413 : e.code === 400 ? 400 : 500, { error: e.code === 413 ? 'too large' : e.code === 400 ? 'bad json' : 'server error' }); }
   };
-  return { server: http.createServer(wrap(route)), adminServer: http.createServer(wrap(admin)), db, close: () => { clearInterval(timer); clearInterval(pruneTimer); }, prune };
+  return { server: http.createServer(wrap(route)), adminServer: http.createServer(wrap(admin)), db, hooks, close: () => { clearInterval(timer); clearInterval(pruneTimer); }, prune };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
