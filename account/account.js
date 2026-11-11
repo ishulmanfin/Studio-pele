@@ -1,3 +1,4 @@
+import { showCancelFlow } from '../help/cancel-flow.js';
 // YALLA KIDS parents' area: gate, WhatsApp sign-in (SMS code as the fallback), subscription, live-talk consent. No dependencies, no trackers.
 const BASE = location.pathname.startsWith('/preview/') ? '/preview' : '';
 const $ = (id) => document.getElementById(id);
@@ -276,7 +277,12 @@ function wire() {
     e.preventDefault(); const f = e.target;
     busy(f, $('pilot-msg'), async () => { me = await api('/pilot/redeem', { code: f.code.value }); f.reset(); render(); notice('הפיילוט הופעל. תיהנו!'); }, PILOT_ERR);
   });
-  $('cancel-open').onclick = () => { $('cancel-confirm').hidden = false; $('cancel-open').hidden = true; $('cancel-yes').focus(); };
+  // Ask why (one tap, skippable) and offer help first; cancelling stays one tap away on every step.
+  $('cancel-open').onclick = async () => {
+    let r = 'cancel'; try { r = await showCancelFlow(BASE); } catch {}
+    if (r !== 'cancel') { me = await api('/account/me'); render(); return; }
+    $('cancel-confirm').hidden = false; $('cancel-open').hidden = true; $('cancel-yes').focus();
+  };
   $('cancel-no').onclick = () => { $('cancel-confirm').hidden = true; $('cancel-open').hidden = false; };
   $('cancel-yes').onclick = () => busy($('cancel-confirm'), $('sub-detail'), async () => { me = await api('/billing/cancel', {}); render(); notice('המנוי בוטל. לא יהיו חיובים נוספים.'); });
   $('f-delete').code.addEventListener('input', (e) => { e.target.value = digits(e.target.value); });
