@@ -1,30 +1,30 @@
-// YALLA KIDS parents' area: gate, sign-in, subscription, live-talk consent. No dependencies, no trackers.
+// YALLA KIDS parents' area: gate, phone + SMS-code sign-in, subscription, live-talk consent. No dependencies, no trackers.
 const BASE = location.pathname.startsWith('/preview/') ? '/preview' : '';
 const $ = (id) => document.getElementById(id);
 const show = (id) => { for (const s of ['gate', 'auth', 'dash']) $(s).hidden = s !== id; };
 
 const ERR = {
-  bad_email: 'האימייל לא נראה תקין.', weak_password: 'הסיסמה צריכה להיות באורך 8 תווים לפחות.', consent_required: 'צריך לסמן את שתי ההצהרות.',
-  exists: 'כבר יש חשבון עם האימייל הזה. אפשר להיכנס.', bad_login: 'האימייל או הסיסמה לא נכונים.', too_many: 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.',
-  bad_code: 'הקוד לא נמצא או שכבר נוצל.', already_subscribed: 'יש לכם כבר מנוי פעיל.', billing_closed: 'התשלום עוד לא נפתח.',
+  bad_phone: 'מספר הטלפון לא נראה תקין.', bad_code: 'הקוד לא נכון.', code_expired: 'הקוד פג תוקף. שלחו קוד חדש.', consent_required: 'צריך לסמן את שתי ההצהרות.',
+  too_many: 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.', sms_unavailable: 'שליחת ה-SMS לא זמינה כרגע. נסו שוב מאוחר יותר.', already_subscribed: 'יש לכם כבר מנוי פעיל.', billing_closed: 'התשלום עוד לא נפתח.',
   provider_unavailable: 'שירות התשלום לא זמין כרגע. נסו שוב מאוחר יותר.', cancel_failed: 'הביטול לא הצליח מול חברת הסליקה. נסו שוב או כתבו לנו.',
   too_many_signups: 'נרשמו יותר מדי חשבונות מהרשת הזו. אפשר לנסות שוב בעוד שעה.', no_plan: 'צריך קוד פיילוט או מסלול כדי להפעיל שיחה חיה.',
   nothing_to_cancel: 'אין מנוי פעיל לביטול.', signup_closed: 'ההרשמה סגורה כרגע.', login_required: 'צריך להתחבר מחדש.', bad_origin: 'הבקשה נחסמה. רעננו את העמוד.',
 };
-const PW_ERR = { bad_login: 'הסיסמה לא נכונה.' };
+// In the pilot card "bad_code" is about the pilot code, not the SMS code.
+const PILOT_ERR = { bad_code: 'הקוד לא נמצא או שכבר נוצל.' };
 const errText = (e) => ERR[e] || 'משהו השתבש. נסו שוב.';
 
 async function api(path, body) {
   const r = await fetch(`${BASE}/api${path}`, { method: body ? 'POST' : 'GET', credentials: 'same-origin', headers: body ? { 'content-type': 'application/json' } : {}, body: body && JSON.stringify(body) });
   let j = {}; try { j = await r.json(); } catch {}
-  if (!r.ok) throw Object.assign(new Error(j.error || r.status), { code: j.error, status: r.status });
+  if (!r.ok) throw Object.assign(new Error(j.error || r.status), { code: j.error, status: r.status, retryAfterSec: j.retryAfterSec });
   return j;
 }
 // Disable a form's buttons while a request runs, show its error in place.
 async function busy(form, msgEl, fn, errs = {}) {
   const btns = form.querySelectorAll('button'); btns.forEach((b) => (b.disabled = true)); msgEl.textContent = '';
-  try { await fn(); } catch (e) { msgEl.textContent = errs[e.code] || errText(e.code); if (e.status === 401 && e.code === 'login_required') show('auth'); }
-  finally { btns.forEach((b) => (b.disabled = false)); }
+  try { await fn(); } catch (e) { msgEl.textContent = e.code === 'too_many' && e.retryAfterSec <= 120 ? `אפשר לבקש קוד חדש בעוד ${e.retryAfterSec} שניות.` : errs[e.code] || errText(e.code); if (e.status === 401 && e.code === 'login_required') show('auth'); }
+  finally { btns.forEach((b) => (b.disabled = !!b.dataset.cool)); }
 }
 
 // ---------- parent gate: a sum written in words, typed on a number pad; 2 wrong = 60 s lock ----------
@@ -69,14 +69,51 @@ function buildPad() {
 // The gate holds for 15 minutes in this tab.
 const gateOpen = () => Date.now() - +(sessionStorage.getItem('yk-gate') || 0) < 15 * 60e3;
 
-// ---------- sign in / sign up ----------
-let mode = 'login';
-function setMode(m) {
-  mode = m;
-  $('tab-login').setAttribute('aria-selected', m === 'login'); $('tab-signup').setAttribute('aria-selected', m === 'signup');
-  document.querySelectorAll('.signup-only').forEach((el) => (el.hidden = m !== 'signup'));
-  $('f-auth').password.autocomplete = m === 'signup' ? 'new-password' : 'current-password';
-  $('auth-submit').textContent = m === 'signup' ? 'יצירת חשבון' : 'כניסה'; $('auth-msg').textContent = '';
+// ---------- sign in with a phone and an SMS code (the same flow signs up a new parent) ----------
+const digits = (v) => v.replace(/\D/g, '').slice(0, 6);
+// "Send again" stays disabled while the server's resend window counts down.
+function cooldown(btn, sec) {
+  clearInterval(btn._t); const label = btn.dataset.label || (btn.dataset.label = btn.textContent); let left = Math.max(0, Math.round(sec) || 0);
+  const tick = () => { if (left > 0) { btn.dataset.cool = '1'; btn.disabled = true; btn.textContent = `${label} (${left--})`; } else { clearInterval(btn._t); delete btn.dataset.cool; btn.disabled = false; btn.textContent = label; } };
+  tick(); if (left >= 0 && btn.dataset.cool) btn._t = setInterval(tick, 1000);
+}
+// 0501234567 or +972501234567 is shown as 050-***-4567.
+const maskPhone = (p) => { if (String(p).includes('*')) return p; let d = String(p || '').replace(/\D/g, ''); if (d.startsWith('972')) d = '0' + d.slice(3); return d.length >= 9 ? `${d.slice(0, 3)}-***-${d.slice(-4)}` : '***'; };
+let phone = '';
+function authStep(step) {
+  $('f-phone').hidden = step !== 'phone'; $('f-code').hidden = step !== 'code';
+  $('auth-msg').textContent = ''; $('code-msg').textContent = '';
+  if (step === 'phone') { $('f-code').reset(); $('consent').hidden = true; }
+}
+async function sendLoginCode(form, msgEl) {
+  await busy(form, msgEl, async () => {
+    const j = await api('/auth/code', { phone });
+    $('code-to').textContent = phone; authStep('code'); cooldown($('resend'), j.resendInSec ?? 60); $('f-code').code.focus();
+  });
+}
+function verifyCode() {
+  const f = $('f-code'), needConsent = !$('consent').hidden;
+  if (f.code.value.length < 6) { $('code-msg').textContent = ERR.bad_code; return; }
+  if (needConsent && !(f.parentAdult.checked && f.acceptTerms.checked)) { $('code-msg').textContent = ERR.consent_required; return; }
+  busy(f, $('code-msg'), async () => {
+    const body = { phone, code: f.code.value };
+    if (needConsent) Object.assign(body, { parentAdult: true, acceptTerms: true });
+    try { me = await api('/auth/verify', body); }
+    catch (e) {
+      // A new parent: the same code stays valid, we only need the two consents.
+      if (e.code === 'consent_required' && !needConsent) { $('consent').hidden = false; f.parentAdult.focus(); return; }
+      if (e.code === 'bad_code' || e.code === 'code_expired') { f.code.value = ''; f.code.focus(); }
+      throw e;
+    }
+    authStep('phone'); $('f-phone').reset(); await loadDash();
+    if (needConsent) notice('החשבון נוצר. אם קיבלתם קוד פיילוט, הזינו אותו למטה.');
+  });
+}
+// Step-up for sensitive actions: a fresh code to the account's own phone.
+async function sendConfirm(form, msgEl, resendBtn) {
+  let ok = false;
+  await busy(form, msgEl, async () => { const j = await api('/account/confirm-code', {}); ok = true; if (resendBtn) cooldown(resendBtn, j.resendInSec ?? 60); });
+  return ok;
 }
 
 // ---------- dashboard ----------
@@ -86,7 +123,7 @@ let me = null, plans = [];
 
 function render() {
   const s = me.subscription;
-  $('who').textContent = me.email;
+  $('who').textContent = maskPhone(me.phone); document.querySelectorAll('.my-phone').forEach((el) => (el.textContent = maskPhone(me.phone)));
   const st = $('sub-status'); st.classList.toggle('on', me.entitled);
   if (!s || !me.entitled) { st.textContent = 'אין מנוי פעיל'; $('sub-detail').textContent = s ? `המנוי הסתיים ב-${fmtDate(s.periodEnd)}.` : 'אפשר להצטרף לפיילוט עם קוד, או לבחור מסלול.'; }
   else if (s.status === 'pilot') { st.textContent = 'פיילוט חינמי'; $('sub-detail').textContent = `בתוקף עד ${fmtDate(s.periodEnd)}. אין חיוב.`; }
@@ -127,50 +164,49 @@ async function loadDash() {
 async function start() {
   if (!gateOpen()) { show('gate'); newQuestion(); if (Date.now() < lockedUntil) lock(); return; }
   try { await loadDash(); if (new URLSearchParams(location.search).get('paid')) notice('תודה! התשלום התקבל והמנוי פעיל.'); }
-  catch (e) { if (e.status === 401) { show('auth'); setMode('login'); } else { show('auth'); $('auth-msg').textContent = errText(e.code); } }
+  catch (e) { show('auth'); authStep('phone'); if (e.status !== 401) $('auth-msg').textContent = errText(e.code); }
 }
 
 function wire() {
   buildPad();
   document.addEventListener('keydown', (e) => { if (!$('gate').hidden && /^[0-9]$|^Backspace$/.test(e.key)) gateKey(e.key === 'Backspace' ? '⌫' : e.key); });
-  $('tab-login').onclick = () => setMode('login'); $('tab-signup').onclick = () => setMode('signup');
-  $('f-auth').addEventListener('submit', (e) => {
-    e.preventDefault(); const f = e.target;
-    busy(f, $('auth-msg'), async () => {
-      const body = { email: f.email.value.trim(), password: f.password.value };
-      if (mode === 'signup') Object.assign(body, { parentAdult: f.parentAdult.checked, acceptTerms: f.acceptTerms.checked });
-      me = await api(mode === 'signup' ? '/account/signup' : '/account/login', body);
-      f.reset(); await loadDash(); if (mode === 'signup') notice('החשבון נוצר. אם קיבלתם קוד פיילוט, הזינו אותו למטה.');
-    });
-  });
-  // Switching live talk ON asks for the parent's password; switching it OFF never does.
-  $('live-toggle').addEventListener('change', (e) => {
+  $('f-phone').addEventListener('submit', (e) => { e.preventDefault(); phone = e.target.phone.value.trim(); sendLoginCode(e.target, $('auth-msg')); });
+  $('f-code').addEventListener('submit', (e) => { e.preventDefault(); verifyCode(); });
+  // The code submits itself on the 6th digit (also when iOS fills it from the SMS).
+  $('f-code').code.addEventListener('input', (e) => { e.target.value = digits(e.target.value); if (e.target.value.length === 6 && $('consent').hidden) verifyCode(); });
+  $('consent').addEventListener('change', () => { $('code-msg').textContent = ''; });
+  $('resend').onclick = () => { $('f-code').code.value = ''; sendLoginCode($('f-code'), $('code-msg')); };
+  $('other-phone').onclick = () => { authStep('phone'); $('f-phone').phone.focus(); };
+  // Switching live talk ON asks for an SMS code to the parent's phone; switching it OFF never does.
+  $('live-toggle').addEventListener('change', async (e) => {
     $('live-msg').textContent = '';
-    if (e.target.checked) { e.target.checked = false; $('f-live').hidden = false; $('f-live').password.focus(); return; }
+    if (e.target.checked) {
+      e.target.checked = false; const f = $('f-live'); f.reset(); f.hidden = false;
+      if (await sendConfirm(f, $('live-msg'), $('live-resend'))) f.code.focus(); else f.hidden = true;
+      return;
+    }
     e.target.disabled = true;
     api('/account/live-talk', { enabled: false }).then((j) => { me = j; render(); }).catch(() => { e.target.checked = true; }).finally(() => { e.target.disabled = false; });
   });
   $('live-cancel').onclick = () => { $('f-live').reset(); $('f-live').hidden = true; $('live-msg').textContent = ''; };
-  $('f-live').addEventListener('submit', (e) => {
-    e.preventDefault(); const f = e.target;
-    busy(f, $('live-msg'), async () => { me = await api('/account/live-talk', { enabled: true, password: f.password.value }); f.reset(); f.hidden = true; render(); }, PW_ERR);
-  });
+  $('live-resend').onclick = () => sendConfirm($('f-live'), $('live-msg'), $('live-resend'));
+  const submitLive = () => { const f = $('f-live'); busy(f, $('live-msg'), async () => { me = await api('/account/live-talk', { enabled: true, code: f.code.value }); f.reset(); f.hidden = true; render(); }).then(() => { if (!f.hidden) { f.code.value = ''; f.code.focus(); } }); };
+  $('f-live').addEventListener('submit', (e) => { e.preventDefault(); submitLive(); });
+  $('f-live').code.addEventListener('input', (e) => { e.target.value = digits(e.target.value); if (e.target.value.length === 6) submitLive(); });
   $('f-pilot').addEventListener('submit', (e) => {
     e.preventDefault(); const f = e.target;
-    busy(f, $('pilot-msg'), async () => { me = await api('/pilot/redeem', { code: f.code.value }); f.reset(); render(); notice('הפיילוט הופעל. תיהנו!'); });
+    busy(f, $('pilot-msg'), async () => { me = await api('/pilot/redeem', { code: f.code.value }); f.reset(); render(); notice('הפיילוט הופעל. תיהנו!'); }, PILOT_ERR);
   });
   $('cancel-open').onclick = () => { $('cancel-confirm').hidden = false; $('cancel-open').hidden = true; $('cancel-yes').focus(); };
   $('cancel-no').onclick = () => { $('cancel-confirm').hidden = true; $('cancel-open').hidden = false; };
   $('cancel-yes').onclick = () => busy($('cancel-confirm'), $('sub-detail'), async () => { me = await api('/billing/cancel', {}); render(); notice('המנוי בוטל. לא יהיו חיובים נוספים.'); });
-  $('f-pass').addEventListener('submit', (e) => {
-    e.preventDefault(); const f = e.target;
-    busy(f, $('pass-msg'), async () => { me = await api('/account/password', { oldPassword: f.oldPassword.value, newPassword: f.newPassword.value }); f.reset(); f.closest('details').open = false; notice('הסיסמה עודכנה. מכשירים אחרים נותקו.'); }, PW_ERR);
-  });
+  $('f-delete').code.addEventListener('input', (e) => { e.target.value = digits(e.target.value); });
+  $('delete-send').onclick = async () => { if (await sendConfirm($('f-delete'), $('delete-msg'), $('delete-send'))) { $('delete-step').hidden = false; $('f-delete').code.focus(); } };
   $('f-delete').addEventListener('submit', (e) => {
     e.preventDefault(); const f = e.target;
-    busy(f, $('delete-msg'), async () => { await api('/account/delete', { password: f.password.value }); me = null; f.reset(); show('auth'); setMode('signup'); $('auth-msg').textContent = 'החשבון נמחק.'; }, PW_ERR);
+    busy(f, $('delete-msg'), async () => { await api('/account/delete', { code: f.code.value }); me = null; f.reset(); $('delete-step').hidden = true; show('auth'); authStep('phone'); $('auth-msg').textContent = 'החשבון נמחק.'; });
   });
-  $('logout').onclick = async () => { try { await api('/account/logout', {}); } catch {} show('auth'); setMode('login'); };
+  $('logout').onclick = async () => { try { await api('/account/logout', {}); } catch {} me = null; show('auth'); authStep('phone'); };
 }
 
 wire(); start();

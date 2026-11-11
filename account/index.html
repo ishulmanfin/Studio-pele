@@ -6,6 +6,8 @@
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
 <title>YALLA KIDS · אזור ההורים</title>
+<meta name="theme-color" content="#1B0F4A">
+<link rel="preload" href="fonts/Fredoka-hebrew.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="account.css">
 <script type="module" src="account.js"></script>
 </head>
@@ -13,45 +15,74 @@
 <main id="app" aria-live="polite">
 
   <!-- 1. Parent gate: stops a young child before anything else -->
-  <section id="gate" class="card narrow" hidden>
+  <section id="gate" class="stage" hidden>
+    <aside class="hero">
+      <p class="brand" dir="ltr" aria-hidden="true">YALLA <b>KIDS</b></p>
+      <figure class="maya"><img src="img/maya.webp" alt="מאיה, המורה של YALLA KIDS" width="510" height="612"><figcaption>מאיה · מורה ממוחשבת (AI)</figcaption></figure>
+      <p class="hero-line">שלום הורים, נעים מאוד.</p>
+      <p class="hero-sub">כאן מנהלים את המנוי, את הפרטיות ואת השיחה החיה עם מאיה.</p>
+    </aside>
+    <div class="card panel">
+    <span class="badge"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>להורים בלבד</span>
     <h1>אזור ההורים</h1>
     <p class="muted">כדי להמשיך, מבוגר צריך לפתור את התרגיל.</p>
     <p class="question" id="gate-q"></p>
     <output id="gate-input" class="pin" aria-label="התשובה"></output>
     <div class="pad" id="gate-pad" role="group" aria-label="מקלדת מספרים"></div>
     <p class="error" id="gate-msg" role="alert"></p>
+    </div>
   </section>
 
   <!-- 2. Sign in / sign up -->
-  <section id="auth" class="card narrow" hidden>
+  <section id="auth" class="stage" hidden>
+    <aside class="hero">
+      <p class="brand" dir="ltr" aria-hidden="true">YALLA <b>KIDS</b></p>
+      <figure class="maya"><img src="img/maya.webp" alt="מאיה, המורה של YALLA KIDS" width="510" height="612"><figcaption>מאיה · מורה ממוחשבת (AI)</figcaption></figure>
+      <p class="hero-line">חשבון אחד לכל המשפחה.</p>
+      <ul class="trust">
+        <li>בלי סיסמאות: נכנסים עם קוד ב-SMS</li>
+        <li>שום מידע על הילד לא נשמר אצלנו</li>
+        <li>שיחה חיה רק באישור ההורה</li>
+      </ul>
+    </aside>
+    <div class="card panel">
     <h1>החשבון של המשפחה</h1>
-    <div class="tabs" role="tablist">
-      <button role="tab" id="tab-login" aria-selected="true">כניסה</button>
-      <button role="tab" id="tab-signup" aria-selected="false">הרשמה</button>
-    </div>
-    <form id="f-auth" novalidate>
-      <label>אימייל של ההורה<input name="email" type="email" autocomplete="email" inputmode="email" dir="ltr" required></label>
-      <label>סיסמה<input name="password" type="password" autocomplete="current-password" dir="ltr" minlength="8" required>
-        <small class="muted signup-only" hidden>לפחות 8 תווים.</small></label>
-      <div class="signup-only" hidden>
+    <p class="muted lead">מספר טלפון, קוד ב-SMS, וזהו. בלי סיסמאות.</p>
+    <form id="f-phone" novalidate>
+      <label>הטלפון הנייד של ההורה<input class="big" name="phone" type="tel" inputmode="numeric" autocomplete="tel" dir="ltr" placeholder="050-1234567" maxlength="16" required></label>
+      <button class="primary wide-btn" type="submit" id="auth-submit">שלחו לי קוד</button>
+      <p class="error" id="auth-msg" role="alert"></p>
+    </form>
+    <form id="f-code" novalidate hidden>
+      <p class="sent">שלחנו קוד בן 6 ספרות אל <bdi id="code-to" dir="ltr"></bdi></p>
+      <label>הקוד מה-SMS<input class="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" dir="ltr" placeholder="••••••" required></label>
+      <div class="consent" id="consent" hidden>
+        <p class="consent-t">פעם ראשונה כאן? רק שני אישורים קצרים:</p>
         <label class="check"><input type="checkbox" name="parentAdult"><span>אני ההורה או האפוטרופוס של הילד, ואני בגיר (בן 18 ומעלה).</span></label>
         <label class="check"><input type="checkbox" name="acceptTerms"><span>קראתי ואני מסכים/ה ל<a href="terms.html" target="_blank" rel="noopener">תנאי השימוש והמנוי</a> ול<a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a>.</span></label>
       </div>
-      <button class="primary" type="submit" id="auth-submit">כניסה</button>
-      <p class="error" id="auth-msg" role="alert"></p>
+      <button class="primary wide-btn" type="submit" id="code-submit">כניסה</button>
+      <p class="error" id="code-msg" role="alert"></p>
+      <div class="links">
+        <button class="link" type="button" id="resend">שליחה מחדש</button>
+        <button class="link" type="button" id="other-phone">מספר אחר</button>
+      </div>
     </form>
-    <p class="muted small">אנחנו שומרים רק אימייל, סיסמה מוצפנת ומצב המנוי. שום מידע על הילד לא נשמר אצלנו.</p>
+    <p class="stay">נשארים מחוברים במכשיר הזה.</p>
+    <p class="muted small fine">אנחנו שומרים רק את מספר הטלפון ומצב המנוי. שום מידע על הילד לא נשמר אצלנו.</p>
+    </div>
   </section>
 
   <!-- 3. Dashboard -->
   <section id="dash" hidden>
     <header class="top">
-      <h1>אזור ההורים</h1>
-      <span class="muted" id="who" dir="ltr"></span>
+      <img class="avatar" src="img/maya.webp" alt="" width="510" height="612">
+      <div class="top-t"><p class="brand" dir="ltr" aria-hidden="true">YALLA <b>KIDS</b></p><h1>אזור ההורים</h1></div>
+      <span class="who" id="who" dir="ltr"></span>
     </header>
     <p class="notice" id="notice" role="status" hidden></p>
 
-    <article class="card">
+    <article class="card sub">
       <h2>המנוי</h2>
       <p class="status" id="sub-status"></p>
       <p class="muted" id="sub-detail"></p>
@@ -65,28 +96,32 @@
       </div>
     </article>
 
-    <article class="card">
-      <h2>שיחה חיה עם מיקה</h2>
+    <article class="card live">
+      <h2>שיחה חיה עם מאיה</h2>
       <div class="meter"><span>היום</span><progress id="use-day" max="3" value="0"></progress><b id="use-day-t"></b></div>
       <div class="meter"><span>החודש</span><progress id="use-month" max="30" value="0"></progress><b id="use-month-t"></b></div>
       <label class="switch">
         <input type="checkbox" id="live-toggle" role="switch">
-        <span>אני מאשר/ת שיחה חיה עם מיקה</span>
+        <span>אני מאשר/ת שיחה חיה עם מאיה</span>
       </label>
-      <form id="f-live" class="row" novalidate hidden>
-        <input name="password" type="password" autocomplete="current-password" dir="ltr" placeholder="הסיסמה שלכם" aria-label="סיסמה לאישור שיחה חיה" required>
-        <button class="primary" type="submit">אישור</button>
-        <button class="ghost" type="button" id="live-cancel">ביטול</button>
+      <form id="f-live" class="stepup" novalidate hidden>
+        <p class="sent">לאישור, שלחנו קוד אל <bdi class="my-phone" dir="ltr"></bdi></p>
+        <div class="row">
+          <input class="code sm" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" dir="ltr" placeholder="••••••" aria-label="קוד מה-SMS לאישור שיחה חיה" required>
+          <button class="primary" type="submit">אישור</button>
+          <button class="ghost" type="button" id="live-cancel">ביטול</button>
+        </div>
+        <button class="link" type="button" id="live-resend">שליחה מחדש</button>
       </form>
       <p class="error" id="live-msg" role="alert"></p>
-      <details class="muted small">
+      <details class="muted small info">
         <summary>מה זה אומר?</summary>
-        הקול של הילד עובר בזמן אמת לספק הקול שלנו (ElevenLabs) כדי שמיקה תוכל לענות. השיחה לא מוקלטת ולא נשמרת, ושם הילד לא נשלח.
+        הקול של הילד עובר בזמן אמת לספק הקול שלנו (ElevenLabs) כדי שמאיה תוכל לענות. השיחה לא מוקלטת ולא נשמרת, ושם הילד לא נשלח.
         עד 3 דקות ביום ו-30 דקות בחודש. אפשר לכבות בכל רגע.
       </details>
     </article>
 
-    <article class="card" id="pilot-card">
+    <article class="card pilot" id="pilot-card">
       <h2>קוד פיילוט</h2>
       <p class="muted">קיבלתם קוד הצטרפות לפיילוט? הזינו אותו כאן לגישה חינמית.</p>
       <form id="f-pilot" class="row" novalidate>
@@ -96,7 +131,7 @@
       <p class="error" id="pilot-msg" role="alert"></p>
     </article>
 
-    <article class="card" id="plans-card">
+    <article class="card wide" id="plans-card">
       <h2>מסלולים</h2>
       <p class="muted" id="plans-closed" hidden>ההרשמה בתשלום תיפתח אחרי תקופת הפיילוט. עד אז לא נחייב אף אחד.</p>
       <div class="plans" id="plans"></div>
@@ -104,30 +139,27 @@
       <p class="error" id="plans-msg" role="alert"></p>
     </article>
 
-    <article class="card">
+    <article class="card wide acct">
       <h2>החשבון</h2>
       <details>
-        <summary>שינוי סיסמה</summary>
-        <form id="f-pass" novalidate>
-          <label>סיסמה נוכחית<input name="oldPassword" type="password" autocomplete="current-password" dir="ltr" required></label>
-          <label>סיסמה חדשה<input name="newPassword" type="password" autocomplete="new-password" dir="ltr" minlength="8" required></label>
-          <button class="primary" type="submit">שמירה</button>
-          <p class="error" id="pass-msg" role="alert"></p>
-        </form>
-      </details>
-      <details>
         <summary class="danger">מחיקת החשבון</summary>
-        <form id="f-delete" novalidate>
-          <p>המחיקה סופית: האימייל, הסיסמה והמנוי נמחקים מיד, וחיוב עתידי מבוטל.</p>
-          <label>סיסמה לאישור<input name="password" type="password" autocomplete="current-password" dir="ltr" required></label>
-          <button class="danger" type="submit">למחוק לצמיתות</button>
+        <form id="f-delete" class="stepup" novalidate>
+          <p>המחיקה סופית: מספר הטלפון והמנוי נמחקים מיד, וחיוב עתידי מבוטל.</p>
+          <button class="ghost" type="button" id="delete-send">שלחו לי קוד לאישור המחיקה</button>
+          <div id="delete-step" hidden>
+            <p class="sent">שלחנו קוד אל <bdi class="my-phone" dir="ltr"></bdi></p>
+            <div class="row">
+              <input class="code sm" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" dir="ltr" placeholder="••••••" aria-label="קוד מה-SMS לאישור המחיקה" required>
+              <button class="danger" type="submit">למחוק לצמיתות</button>
+            </div>
+          </div>
           <p class="error" id="delete-msg" role="alert"></p>
         </form>
       </details>
       <button class="ghost" id="logout">יציאה</button>
     </article>
 
-    <footer class="muted small"><a href="terms.html" target="_blank" rel="noopener">תנאי השימוש והמנוי</a> · <a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a></footer>
+    <footer class="small"><a href="terms.html" target="_blank" rel="noopener">תנאי השימוש והמנוי</a> · <a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a></footer>
   </section>
 
 </main>
