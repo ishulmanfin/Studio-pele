@@ -13,12 +13,28 @@ export const STATES = ['open', 'waiting', 'solved'];          // waiting = waiti
 const MAX_TEXT = 2000, MAX_MSGS = 60, KEEP_SOLVED_DAYS = 180, KEEP_DIAG_DAYS = 30;
 // Proactive care: what we tell a parent when the server sees a problem first.
 export const CARE = {
-  live_talk_failed: { topic: 'live_talk', text: 'שמנו לב שהשיחה עם מיקה לא הצליחה להתחבר היום. כבר בדקנו, והוספנו לכם יום שיחה מתנה. אם זה חוזר, אפשר לענות כאן ונטפל.', bonus: true },
+  live_talk_failed: { topic: 'live_talk', text: 'שמנו לב שהשיחה עם מאיה לא הצליחה להתחבר היום. כבר בדקנו, והוספנו לכם 3 דקות שיחה מתנה להיום. אם זה חוזר, אפשר לענות כאן ונטפל.', bonus: true },
   payment_failed: { topic: 'billing', text: 'החיוב האחרון לא עבר. לא נורא: הגישה נשארת פתוחה עוד 3 ימים. אפשר לעדכן אמצעי תשלום באזור ההורים, ואם משהו לא ברור, פשוט לענות כאן.' },
   app_errors: { topic: 'sound', text: 'שמנו לב לכמה תקלות טכניות במכשיר שלכם. אולי כדאי לנסות "תיקון מהיר" במרכז העזרה. אם זה לא עוזר, ענו כאן ונמשיך יחד.' },
 };
 const CARE_COOLDOWN_DAYS = 7;                                   // at most one care note of each kind a week
 
+// The owner's console is one self-contained page (CSS, JS and fonts inlined), because only
+// GET /support/console skips the admin token on the host. It holds no data; it asks for the token.
+const CONSOLE_DIR = new URL('../../support/console/', import.meta.url);
+const CONSOLE_HEADERS = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer',
+  'content-security-policy': "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; img-src data: 'self'; connect-src 'self'; frame-ancestors 'none'" };
+let consoleCache = null;
+function consolePage() {
+  if (consoleCache) return consoleCache;
+  const rd = (f, enc = 'utf8') => readFileSync(new URL(f, CONSOLE_DIR), enc);
+  const css = rd('console.css').replace(/url\(\/support\/console\/fonts\/([\w-]+\.woff2)\)/g, (_, f) => `url(data:font/woff2;base64,${rd(`fonts/${f}`, 'base64')})`);
+  const js = rd('console.js').replace(/<\/script/gi, '<\\/script');
+  consoleCache = rd('index.html')
+    .replace(/<link rel="stylesheet" href="\/support\/console\/console\.css">/, () => `<style>${css}</style>`)
+    .replace(/<script type="module" src="\/support\/console\/console\.js"><\/script>/, () => `<script type="module">${js}</script>`);
+  return consoleCache;
+}
 const id = (p) => `${p}_${randomBytes(6).toString('hex')}`;
 const iso = (t = Date.now()) => new Date(t).toISOString();
 
@@ -82,7 +98,7 @@ export function createSupport({ dir, env = {}, audit: hostAudit, facts, listAcco
     hooks.onTicket?.(t);
     return t;
   }
-  const parentView = (t) => ({ id: t.id, topic: t.topic, state: t.state, created: t.created, updated: t.updated, rating: t.rating, unread: !!t.unreadParent,
+  const parentView = (t) => ({ id: t.id, topic: t.topic, source: t.source, subject: t.subject, state: t.state, created: t.created, updated: t.updated, rating: t.rating, unread: !!t.unreadParent,
     msgs: t.msgs.filter((m) => !m.internal).map(({ from, text, at }) => ({ from, text, at })) });
   const mine = (aid) => Object.values(db.tickets).filter((t) => t.aid === aid).sort((a, b) => b.updated.localeCompare(a.updated));
 
@@ -94,7 +110,7 @@ export function createSupport({ dir, env = {}, audit: hostAudit, facts, listAcco
     if (mine(aid).some((t) => t.state !== 'solved' && t.topic === c.topic)) return null;   // already talking about it
     db.care[key] = iso(now());
     const t = openTicket(aid, { topic: c.topic, text: c.text, source: 'care' });
-    if (c.bonus) { try { hooks.compensate?.(aid, kind); t.msgs.push({ id: id('m'), from: 'system', text: 'יום שיחה מתנה נוסף', at: iso(now()), internal: true }); } catch {} }
+    if (c.bonus) { try { hooks.compensate?.(aid, kind); t.msgs.push({ id: id('m'), from: 'system', text: 'ניתנו 3 דקות שיחה מתנה להיום', at: iso(now()), internal: true }); } catch {} }
     try { hooks.notify?.(aid, { kind: 'care', ticket: t.id, text: c.text }); } catch {}
     save(); return t;
   }
@@ -157,13 +173,15 @@ export function createSupport({ dir, env = {}, audit: hostAudit, facts, listAcco
       const d = { id: id('d'), aid, at: iso(now()), ...cleanDiag(await json(req)) };
       db.diags[d.id] = d; save();
       if (d.errors.length >= 5) care(aid, 'app_errors');
-      send(res, 201, { diagId: d.id, hints: hintsFor(d) }); return true;
+      send(res, 201, { diagId: d.id, hints: hintsFor(d), tips: tipsFor(d) }); return true;
     }
     if (path === '/api/support/tickets' && M === 'GET') { send(res, 200, { tickets: mine(aid).map(parentView) }); return true; }
     if (path === '/api/support/tickets' && M === 'POST') {
       const b = await json(req);
       if (!scrub(b.text)) { send(res, 400, { error: 'empty' }); return true; }
-      if (!allow(`t:${aid}`, 5, 60) || mine(aid).filter((t) => t.state === 'open').length >= 5) { send(res, 429, { error: 'too_many' }); return true; }
+      const openNow = mine(aid).filter((t) => t.state !== 'solved');
+      if (openNow.length >= 5) { send(res, 409, { error: 'too_many_open', ticket: openNow[0].id }); return true; }
+      if (!allow(`t:${aid}`, 5, 60)) { send(res, 429, { error: 'too_many' }); return true; }
       send(res, 201, parentView(openTicket(aid, b))); return true;
     }
     const m = path.match(/^\/api\/support\/tickets\/(t_[a-f0-9]{12})(?:\/(reply|rate|read|solve))?$/);
@@ -173,7 +191,9 @@ export function createSupport({ dir, env = {}, audit: hostAudit, facts, listAcco
       if (!m[2] && M === 'GET') { send(res, 200, parentView(t)); return true; }
       const b = M === 'POST' ? await json(req) : {};
       if (m[2] === 'reply' && M === 'POST') {
-        if (!scrub(b.text) || !allow(`r:${aid}`, 20, 60) || !addMsg(t, 'parent', b.text)) { send(res, 429, { error: 'too_many' }); return true; }
+        if (!scrub(b.text)) { send(res, 400, { error: 'empty' }); return true; }
+        if (!allow(`r:${aid}`, 20, 60)) { send(res, 429, { error: 'too_many' }); return true; }
+        if (!addMsg(t, 'parent', b.text)) { send(res, 409, { error: 'ticket_full' }); return true; }
         t.unreadParent = false; save(); hooks.onTicket?.(t); send(res, 200, parentView(t)); return true;
       }
       if (m[2] === 'read' && M === 'POST') { t.unreadParent = false; save(); send(res, 200, { ok: true }); return true; }
@@ -210,9 +230,10 @@ export function createSupport({ dir, env = {}, audit: hostAudit, facts, listAcco
     if (d.rttMs > 600 || (d.downMbps !== undefined && d.downMbps < 2)) h.push('slow_network');
     if (!d.apiOk) h.push('server_unreachable');
     if (d.storageMb !== undefined && d.storageMb < 50) h.push('low_storage');
-    if (d.os === 'iOS' && !d.standalone) h.push('ios_add_to_home');
     return h;
   }
+  // Suggestions that are not faults: shown apart, so a healthy device still reads "all good".
+  const tipsFor = (d) => (d.os === 'iOS' && !d.standalone ? ['ios_add_to_home'] : []);
 
   // ---------- owner routes: /support/* on the admin port (host checks the admin token first) ----------
   async function admin(req, res, path, { send, json }) {
@@ -225,14 +246,14 @@ export function createSupport({ dir, env = {}, audit: hostAudit, facts, listAcco
         .sort((a, b2) => (a.state === 'open') - (b2.state === 'open') || b2.updated.localeCompare(a.updated)).reverse().slice(0, 200);
       send(res, 200, { tickets: list.map((t) => ({ id: t.id, topic: t.topic, state: t.state, source: t.source, created: t.created, updated: t.updated,
         waitingMin: t.state === 'open' ? Math.round((now() - Date.parse(t.updated)) / 60e3) : 0, rating: t.rating, unread: !!t.unreadTeam,
-        preview: t.msgs[t.msgs.length - 1]?.text.slice(0, 120), family: safeFamily(t.aid) })) });
+        preview: t.msgs.filter((x) => x.from !== 'system').pop()?.text.slice(0, 120), family: safeFamily(t.aid) })) });
       return true;
     }
     const m = path.match(/^\/support\/tickets\/(t_[a-f0-9]{12})(?:\/(reply|note|state))?$/);
     if (m) {
       const t = db.tickets[m[1]]; if (!t) { send(res, 404, { error: 'not found' }); return true; }
       if (!m[2]) { t.unreadTeam = false; save(); send(res, 200, { ...t, diag: t.diagId ? db.diags[t.diagId] : null, family: safeFamily(t.aid), timeline: timeline(t.aid) }); return true; }
-      if (m[2] === 'reply' && b.text) { addMsg(t, 'team', b.text); save(); try { hooks.notify?.(t.aid, { kind: 'reply', ticket: t.id, text: scrub(b.text) }); } catch {} send(res, 200, { ok: true }); return true; }
+      if (m[2] === 'reply' && b.text) { addMsg(t, 'team', b.text); t.unreadTeam = false; save(); try { hooks.notify?.(t.aid, { kind: 'reply', ticket: t.id, text: scrub(b.text) }); } catch {} send(res, 200, { ok: true }); return true; }
       if (m[2] === 'note' && b.text) { addMsg(t, 'team', b.text, { internal: true }); save(); send(res, 200, { ok: true }); return true; }
       if (m[2] === 'state' && STATES.includes(b.state)) { t.state = b.state; t.updated = iso(now()); save(); send(res, 200, { ok: true }); return true; }
       send(res, 400, { error: 'bad request' }); return true;
@@ -243,16 +264,17 @@ export function createSupport({ dir, env = {}, audit: hostAudit, facts, listAcco
       if (!fn) { send(res, 501, { error: 'not_available' }); return true; }
       const days = Math.min(Math.max(+b.days || 7, 1), 60);
       const r = await fn(t.aid, b.action === 'bonus_call' ? 'manual' : days, { ticket: t.id, reason: scrub(b.reason || '') });
-      addMsg(t, 'system', `פעולה: ${b.action}${b.action === 'grant_days' ? ` (${days} ימים)` : ''}`, { internal: true }); save();
+      const label = { grant_days: `הוענקו ${days} ימי מנוי`, bonus_call: 'ניתנו דקות שיחה מתנה להיום', refund_request: 'נשלחה בקשת החזר', pause: `המנוי הוקפא ל-${days} ימים` }[b.action];
+      addMsg(t, 'system', label, { internal: true }); save();
       audit({ ev: 'support_action', aid: t.aid, tid: t.id, action: b.action }); send(res, 200, r || { ok: true }); return true;
     }
-    if (path === '/support/care' && M === 'POST') { const t = care(b.aid, b.kind, { force: true }); send(res, t ? 200 : 409, t ? { ticket: t.id } : { error: 'skipped' }); return true; }
+    if (path === '/support/care' && M === 'POST') { const t = care(b.aid || db.tickets[b.ticket]?.aid, b.kind, { force: true }); send(res, t ? 200 : 409, t ? { ticket: t.id } : { error: 'skipped' }); return true; }
     if (path === '/support/incident' && M === 'POST') {
       if (b.resolve) db.incidents.forEach((i) => { if (i.id === b.resolve) i.resolved = iso(now()); });
       else db.incidents.push({ id: id('i'), title: scrub(b.title).slice(0, 120), level: b.level === 'down' ? 'down' : 'degraded', at: iso(now()) });
       db.incidents = db.incidents.slice(-50); save(); send(res, 200, { incidents: db.incidents }); return true;
     }
-    if (path === '/support/console' || path === '/support/console/') { send(res, 200, { hint: 'open support/console/index.html locally; it calls this port with the admin token' }); return true; }
+    if (path === '/support/console' && M === 'GET') { res.writeHead(200, CONSOLE_HEADERS); res.end(consolePage()); return true; }
     send(res, 404, { error: 'not found' }); return true;
   }
   // What the owner sees about a family: never the child, only the parent's plan facts from the host.

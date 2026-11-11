@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>YALLA KIDS · חדר הבקרה</title>
+<meta name="theme-color" content="#0A0520">
+<!-- Absolute paths on purpose: the page is served at /support/console with or without a trailing slash. -->
+<link rel="stylesheet" href="/support/console/console.css">
+<script type="module" src="/support/console/console.js"></script>
+</head>
+<body>
+
+<!-- Token screen: the page itself holds no data. The token stays in this tab only (sessionStorage). -->
+<section id="login" class="login" hidden>
+  <form id="f-login" class="login-card" novalidate>
+    <div class="mark" aria-hidden="true"><i></i><i></i><i></i></div>
+    <p class="brand" dir="ltr">YALLA <b>KIDS</b></p>
+    <h1>חדר הבקרה</h1>
+    <p class="dim">תמיכה, משפחות ותקלות במקום אחד. הכניסה עם טוקן הניהול.</p>
+    <label for="token">טוקן ניהול</label>
+    <input id="token" name="token" type="password" dir="ltr" autocomplete="off" spellcheck="false" required>
+    <button class="btn primary" type="submit">כניסה</button>
+    <p class="msg" id="login-msg" role="alert"></p>
+  </form>
+</section>
+
+<div id="app" class="app" hidden>
+  <header class="top">
+    <div class="top-brand">
+      <span class="brand" dir="ltr">YALLA <b>KIDS</b></span>
+      <h1>חדר הבקרה</h1>
+    </div>
+    <div class="live" id="live" role="status"><span class="beat"></span><span id="live-t">מתחבר</span></div>
+    <div class="top-actions">
+      <div class="keys" aria-label="קיצורי מקלדת"><span><kbd>J</kbd><kbd>K</kbd> מעבר</span><span><kbd>R</kbd> תשובה</span><span><kbd>N</kbd> הערה</span><span><kbd>/</kbd> חיפוש</span><span><kbd>Esc</kbd> מבט על</span></div>
+      <button class="btn ghost sm" type="button" id="to-overview">מבט על</button>
+      <button class="btn ghost sm" type="button" id="logout">יציאה</button>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis" aria-label="מדדים"></section>
+
+  <div class="work">
+    <aside class="inbox panel" aria-label="תיבת הפניות">
+      <div class="inbox-head">
+        <div class="seg" id="filters" role="group" aria-label="סינון לפי מצב"></div>
+        <label class="find"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.500"/><path d="M16 16l4.500 4.500"/></svg>
+          <input id="q" type="search" placeholder="חיפוש בתוכן הפניות" aria-label="חיפוש" autocomplete="off"></label>
+      </div>
+      <div class="list" id="list" role="listbox" aria-label="פניות" tabindex="-1"></div>
+    </aside>
+
+    <main class="main" id="main">
+      <!-- Overview: shown when no ticket is selected -->
+      <div id="overview" class="overview">
+        <section class="panel chart"><h2>פניות פתוחות לפי נושא</h2><div id="by-topic" class="bars"></div></section>
+        <section class="panel chart"><h2>סיבות ביטול <span class="dim">30 יום</span></h2><div id="cancel-reasons" class="bars gold"></div></section>
+        <section class="panel incident">
+          <div class="panel-head"><h2>אירועים פעילים</h2><span class="dim sm">מופיעים להורים במרכז העזרה</span></div>
+          <ul id="incidents" class="inc-list"></ul>
+          <form id="f-incident" class="inc-form" novalidate>
+            <input name="title" maxlength="120" placeholder="מה קורה? למשל: השיחה החיה איטית מהרגיל" aria-label="כותרת האירוע" required>
+            <div class="seg" id="inc-level" role="group" aria-label="חומרה"><button type="button" data-v="degraded" aria-pressed="true">האטה</button><button type="button" data-v="down" aria-pressed="false">השבתה</button></div>
+            <button class="btn primary sm" type="submit">פרסום</button>
+          </form>
+          <p class="msg" id="inc-msg" role="status"></p>
+        </section>
+      </div>
+
+      <!-- Ticket: conversation and composer -->
+      <div id="ticket" class="ticket panel" hidden>
+        <header class="t-head" id="t-head"></header>
+        <div class="conv" id="conv" tabindex="-1"></div>
+        <form class="composer" id="f-compose" novalidate>
+          <div class="composer-top">
+            <div class="seg" id="mode" role="group" aria-label="סוג ההודעה"><button type="button" data-v="reply" aria-pressed="true">תשובה להורה</button><button type="button" data-v="note" aria-pressed="false">הערה פנימית</button></div>
+            <div class="tpls" id="tpls" aria-label="תשובות מוכנות"></div>
+          </div>
+          <textarea id="text" name="text" rows="3" maxlength="2000" placeholder="כתבו תשובה להורה" aria-label="הודעה"></textarea>
+          <div class="composer-row">
+            <p class="msg" id="compose-msg" role="status"></p>
+            <span class="dim sm"><kbd>Ctrl</kbd><kbd>Enter</kbd> לשליחה</span>
+            <button class="btn primary" type="submit" id="send">שליחה להורה</button>
+          </div>
+        </form>
+      </div>
+    </main>
+
+    <aside class="side" id="side" aria-label="פרטי המשפחה והמכשיר" hidden></aside>
+  </div>
+</div>
+</body>
+</html>

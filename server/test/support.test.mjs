@@ -21,7 +21,7 @@ async function boot(t) {
   const signIn = async (phone = '0541112222') => { const c = await req('POST', '/api/auth/code', { phone }); return req('POST', '/api/auth/verify', { phone, code: c.body.devCode, acceptTerms: true, parentAdult: true }); };
   const stop = () => { app.close(); app.server.close(); app.adminServer.close(); };
   t?.after(stop);
-  return { req, adm, signIn, dir, stop, newSession: () => { cookie = ''; } };
+  return { req, adm, signIn, dir, stop, adminUrl: adminBase, newSession: () => { cookie = ''; } };
 }
 
 test('scrub removes personal details a parent may paste', () => {
@@ -42,7 +42,7 @@ test('parent ticket flow: diagnostics, ticket, team reply, rating, owner overvie
   assert.equal((await s.req('GET', '/api/support/tickets')).status, 401);
   await s.signIn();
   const d = await s.req('POST', '/api/support/diagnostics', { os: 'iOS', mic: 'denied', online: true, apiOk: true, standalone: false });
-  assert.equal(d.status, 201); assert.ok(d.body.hints.includes('mic_denied')); assert.ok(d.body.hints.includes('ios_add_to_home'));
+  assert.equal(d.status, 201); assert.ok(d.body.hints.includes('mic_denied')); assert.ok(d.body.tips.includes('ios_add_to_home'));
   assert.equal((await s.req('POST', '/api/support/tickets', { topic: 'sound', text: '  ' })).status, 400);
   const t = await s.req('POST', '/api/support/tickets', { topic: 'sound', text: 'אין קול. הטלפון שלי 0521234567', diagId: d.body.diagId });
   assert.equal(t.status, 201); assert.doesNotMatch(t.body.msgs[0].text, /0521234567/);
@@ -64,6 +64,28 @@ test('parent ticket flow: diagnostics, ticket, team reply, rating, owner overvie
   assert.equal((await s.adm('/support/nothing')).status, 404);
   s.newSession(); await s.signIn('0549998888');
   assert.equal((await s.req('GET', `/api/support/tickets/${t.body.id}`)).status, 404, 'another family cannot read it');
+});
+
+test('console page is served whole without the token; data routes still need it', async (t0) => {
+  const s = await boot(t0);
+  const r = await fetch(s.adminUrl + '/support/console');
+  const html = await r.text();
+  assert.equal(r.status, 200); assert.match(r.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<style>/); assert.match(html, /data:font\/woff2;base64,/); assert.doesNotMatch(html, /src="\/support\/console\/console\.js"/);
+  assert.equal((await fetch(s.adminUrl + '/support/overview')).status, 401);
+});
+
+test('error codes: empty reply, too many open tickets; tips are not faults', async (t0) => {
+  const s = await boot(t0); await s.signIn();
+  const d = await s.req('POST', '/api/support/diagnostics', { os: 'iOS', mic: 'granted', online: true, apiOk: true, audioUnlocked: true });
+  assert.deepEqual(d.body.hints, []); assert.deepEqual(d.body.tips, ['ios_add_to_home']);
+  const ids = [];
+  for (let i = 0; i < 5; i++) ids.push((await s.req('POST', '/api/support/tickets', { topic: 'other', text: `q${i}` })).body.id);
+  const full = await s.req('POST', '/api/support/tickets', { topic: 'other', text: 'q6' });
+  assert.equal(full.status, 409); assert.equal(full.body.error, 'too_many_open');
+  assert.equal((await s.req('POST', `/api/support/tickets/${ids[0]}/reply`, { text: ' ' })).body.error, 'empty');
+  await s.adm(`/support/tickets/${ids[0]}/reply`, { text: 'hi' });
+  assert.equal((await s.adm('/support/tickets')).body.tickets.find((x) => x.id === ids[0]).unread, false, 'answered = read');
 });
 
 test('cancel intent records the reason and offers help', async (t0) => {
