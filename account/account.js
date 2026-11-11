@@ -6,7 +6,7 @@ const show = (id) => { for (const s of ['gate', 'auth', 'dash']) $(s).hidden = s
 
 const ERR = {
   bad_phone: 'מספר הטלפון לא נראה תקין.', bad_code: 'הקוד לא נכון.', code_expired: 'הקוד פג תוקף. שלחו קוד חדש.', consent_required: 'צריך לסמן את שתי ההצהרות.',
-  too_many: 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.', wa_unavailable: 'וואטסאפ לא זמין כרגע. אפשר לקבל קוד ב-SMS.', sms_unavailable: 'שליחת ה-SMS לא זמינה כרגע. נסו שוב מאוחר יותר.', already_subscribed: 'יש לכם כבר מנוי פעיל.', billing_closed: 'התשלום עוד לא נפתח.',
+  too_many: 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.', wa_unavailable: 'וואטסאפ לא זמין כרגע. אפשר לקבל קוד ב-SMS.', sms_unavailable: 'שליחת ה-SMS לא זמינה כרגע. נסו שוב מאוחר יותר.', already_subscribed: 'יש לכם כבר מנוי פעיל.', billing_closed: 'התשלום עוד לא נפתח.', name_required: 'כתבו שם פרטי ושם משפחה, בשביל החשבונית.',
   provider_unavailable: 'שירות התשלום לא זמין כרגע. נסו שוב מאוחר יותר.', cancel_failed: 'הביטול לא הצליח מול חברת הסליקה. נסו שוב או כתבו לנו.',
   too_many_signups: 'נרשמו יותר מדי חשבונות מהרשת הזו. אפשר לנסות שוב בעוד שעה.', no_plan: 'צריך קוד פיילוט או מסלול כדי להפעיל שיחה חיה.',
   nothing_to_cancel: 'אין מנוי פעיל לביטול.', signup_closed: 'ההרשמה סגורה כרגע.', login_required: 'צריך להתחבר מחדש.', bad_origin: 'הבקשה נחסמה. רעננו את העמוד.',
@@ -181,7 +181,7 @@ async function sendConfirm(form, msgEl, resendBtn) {
 // ---------- dashboard ----------
 const fmtDate = (iso) => new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jerusalem' });
 const shekels = (ag) => (ag / 100).toLocaleString('he-IL', { maximumFractionDigits: 0 });
-let me = null, plans = [];
+let me = null, plans = [], needsName = false;
 
 function render() {
   const s = me.subscription;
@@ -191,7 +191,7 @@ function render() {
   else if (s.status === 'pilot') { st.textContent = 'פיילוט חינמי'; $('sub-detail').textContent = `בתוקף עד ${fmtDate(s.periodEnd)}. אין חיוב.`; }
   else if (s.status === 'canceled') { st.textContent = `${s.planName}: בוטל`; $('sub-detail').textContent = `לא נחייב יותר. הגישה נשארת עד ${fmtDate(s.periodEnd)}.`; }
   else if (s.status === 'past_due') { st.textContent = `${s.planName}: בעיה בתשלום`; $('sub-detail').textContent = 'החיוב האחרון לא עבר. עדכנו את אמצעי התשלום בתוך 3 ימים, אחרת הגישה תיעצר.'; }
-  else { st.textContent = `${s.planName}: פעיל`; $('sub-detail').textContent = `מתחדש ב-${fmtDate(s.periodEnd)}.`; }
+  else { st.textContent = `${s.planName}: פעיל`; $('sub-detail').textContent = s.plan === 'yearly' ? `בתוקף עד ${fmtDate(s.periodEnd)}. אין חידוש אוטומטי.` : `מתחדש ב-${fmtDate(s.periodEnd)}.`; }
   const canCancel = me.entitled && s && ['active', 'past_due'].includes(s.status);
   $('cancel-box').hidden = !canCancel; $('cancel-confirm').hidden = true; $('cancel-open').hidden = false;
   if (canCancel) $('cancel-until').textContent = fmtDate(s.periodEnd);
@@ -206,20 +206,25 @@ function render() {
   $('pilot-card').hidden = paid;
   $('plans-card').hidden = me.entitled && s && ['active', 'past_due'].includes(s.status);
   $('plans-closed').hidden = me.billingOpen;
+  $('payer').hidden = !(me.billingOpen && needsName);
   $('plans').replaceChildren(...plans.map((p) => {
     const el = document.createElement('div'); el.className = 'plan' + (p.months === 12 ? ' best' : '');
-    const perMonth = p.months > 1 ? `<span class="muted small">${(p.priceAgorot / 100 / p.months).toFixed(0)} ₪ לחודש</span>` : '<span class="muted small">חיוב חודשי</span>';
+    const perMonth = p.months > 1 ? `<span class="muted small">${(p.priceAgorot / 100 / p.months).toFixed(0)} ₪ לחודש · תשלום אחד</span>` : '<span class="muted small">חיוב חודשי</span>';
     el.innerHTML = `${p.months === 12 ? '<span class="tag">הכי משתלם</span>' : ''}<b></b><span class="price">${shekels(p.priceAgorot)} ₪</span>${perMonth}<button class="primary" type="button"></button>`;
     el.querySelector('b').textContent = p.name;
     const btn = el.querySelector('button'); btn.textContent = me.billingOpen ? 'להצטרף' : 'ייפתח בקרוב'; btn.disabled = !me.billingOpen;
-    btn.addEventListener('click', () => busy(el, $('plans-msg'), async () => { const { url } = await api('/billing/checkout', { plan: p.id }); location.assign(url); }));
+    btn.addEventListener('click', () => busy(el, $('plans-msg'), async () => {
+      const fullName = $('payer-name').value.trim();
+      if (needsName && fullName.split(/\s+/).filter((w) => w.length >= 2).length < 2) { $('payer-name').focus(); throw Object.assign(new Error(), { code: 'name_required' }); }
+      const { url } = await api('/billing/checkout', { plan: p.id, fullName }); location.assign(url);
+    }));
     return el;
   }));
 }
 function notice(text) { $('notice').textContent = text; $('notice').hidden = !text; }
 
 async function loadDash() {
-  let plansView; [me, plansView] = await Promise.all([api('/account/me'), api('/plans')]); plans = plansView.plans;
+  let plansView; [me, plansView] = await Promise.all([api('/account/me'), api('/plans')]); plans = plansView.plans; needsName = !!plansView.needsName;
   if (waAvail === null) waAvail = !!plansView.whatsapp; document.querySelectorAll('[data-wa]').forEach((el) => (el.hidden = !waAvail));
   loginWa.stop(); render(); show('dash');
 }

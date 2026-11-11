@@ -12,7 +12,7 @@ import { PLANS, LIVE, entitled, publicPlans, addDays } from './lib/plans.mjs';
 import { hashPassword, checkPassword, DUMMY_HASH, newToken, sha256, newId, limiter, validEmail, validPassword } from './lib/auth.mjs';
 import { getProvider } from './lib/billing.mjs';
 import { getSms, normalizePhone, maskPhone, codeBook } from './lib/sms.mjs';
-import { waBook, waSignatureOk, inboundTexts, findWaCode, waReply } from './lib/whatsapp.mjs';
+import { waBook, waSignatureOk, inboundTexts, findWaCode, waReply, waPing } from './lib/whatsapp.mjs';
 
 // Versions of the documents a parent agrees to at sign-up. Bump when the text changes.
 export const TERMS_VERSION = '2026-11-draft';
@@ -52,7 +52,10 @@ export function createApp(env = process.env) {
   const REC = `${DIR}/reconciled.json`;                  // cid -> real minutes (0 = never connected)
 
   const { db, save, audit } = openStore(DIR);
-  const provider = getProvider(env);
+  const provider = getProvider(env, {
+    onCheckout: (ref, info) => { if (db.checkouts[ref]) { db.checkouts[ref].process = info; save(); } },
+    checkoutProcess: (ref) => (db.checkouts[ref] && !db.checkouts[ref].done && db.checkouts[ref].process) || null,
+  });
   const sms = getSms(env);
   const SMS_ECHO = env.SMS_DEV_ECHO === '1' && sms.name === 'mock';   // tests/dev only: return the code in the answer
   const SMS_DAY_CAP = num('SMS_DAY_CAP', 200);                       // cost guard: SMS messages per day, all families
@@ -210,6 +213,7 @@ export function createApp(env = process.env) {
     };
   }
 
+  const waNudge = limiter(1, 864e5);
   const waIp = limiter(20, 3600e3), smsPhone = limiter(3, 15 * 60e3), smsIp = limiter(10, 3600e3), verifyIp = limiter(30, 15 * 60e3);
   const loginIp = limiter(10, 15 * 60e3), loginEmail = limiter(5, 15 * 60e3), signupIp = limiter(5, 3600e3), redeemIp = limiter(10, 3600e3);
 
@@ -217,7 +221,7 @@ export function createApp(env = process.env) {
   function applyEvent(ev) {
     if (ev.id && db.processed.includes(ev.id)) return { ok: true, duplicate: true };
     const co = ev.ref && db.checkouts[ev.ref];
-    const acc = co ? db.accounts[co.aid] : Object.values(db.accounts).find((a) => a.sub?.providerRef && a.sub.providerRef === ev.providerRef);
+    const acc = co ? db.accounts[co.aid] : ev.providerRef ? Object.values(db.accounts).find((a) => a.sub?.providerRef === ev.providerRef) : null;
     if (!acc) { audit({ ev: 'webhook_unmatched', type: ev.type, id: ev.id }); return { ok: false }; }
     const prev = acc.sub || {};
     if (ev.type === 'paid') {
@@ -225,7 +229,10 @@ export function createApp(env = process.env) {
       // A paid plan replaces the pilot; renewals extend from the current end, never shorten it.
       const base = prev.status === 'pilot' ? null : prev.periodEnd;
       acc.sub = { plan: plan.id, status: 'active', periodEnd: ev.periodEnd || addDays(base, plan.days), provider: provider.name,
-        providerRef: ev.providerRef || prev.providerRef, cancelAtPeriodEnd: false, since: prev.since || new Date().toISOString() };
+        providerRef: prev.providerRef && prev.status !== 'pilot' && !co ? prev.providerRef : ev.providerRef || prev.providerRef,
+        // keep the standing order's first identifiers: they are what cancelling needs
+        providerMeta: (!co && prev.providerMeta) || ev.providerMeta || prev.providerMeta,
+        cancelAtPeriodEnd: false, since: prev.since || new Date().toISOString() };
       if (co) co.done = true;
     } else if (ev.type === 'failed') {
       if (prev.status === 'active') { acc.sub = { ...prev, status: 'past_due' }; care(acc.id, 'payment_failed'); }
@@ -244,14 +251,14 @@ export function createApp(env = process.env) {
     const M = req.method;
 
     if (path === '/api/health') return send(res, 200, { ok: true, liveTalk: LIVE_ON && !!KEY, billing: BILLING_ON });
-    if (path === '/api/plans' && M === 'GET') return send(res, 200, { plans: publicPlans(), billingOpen: BILLING_ON, whatsapp: WA_ON, terms: TERMS_VERSION, privacy: PRIVACY_VERSION });
+    if (path === '/api/plans' && M === 'GET') return send(res, 200, { plans: publicPlans(), billingOpen: BILLING_ON, needsName: !!provider.needsName, whatsapp: WA_ON, terms: TERMS_VERSION, privacy: PRIVACY_VERSION });
 
     // Provider webhooks: no cookie, no CSRF check, authenticity comes from the provider's signature.
     const wh = path.match(/^\/api\/billing\/webhook\/([a-z]+)$/);
     if (wh && M === 'POST') {
       if (wh[1] !== provider.name) return send(res, 404, { error: 'not found' });
       const raw = await readBody(req); let ev = null;
-      try { ev = provider.parseWebhook({ headers: req.headers, raw }); } catch {}
+      try { ev = await provider.parseWebhook({ headers: req.headers, raw, query: url.searchParams }); } catch {}
       if (!ev) { audit({ ev: 'webhook_rejected', ip: ipOf(req) }); return send(res, 401, { error: 'bad signature' }); }
       return send(res, 200, applyEvent(ev));
     }
@@ -268,7 +275,12 @@ export function createApp(env = process.env) {
       let body = {}; try { body = JSON.parse(raw); } catch {}
       for (const m of inboundTexts(body)) {
         const code = findWaCode(m.text); const p = code && wa.get(code);
-        if (!p || p.phone) continue;
+        if (!p) {
+          // Not a live sign-in code: one short pointer to help per number per day (free inside the 24-hour window).
+          if (waNudge(m.from)) waReply(env, m.from, code ? 'הקוד הזה כבר לא בתוקף. אפשר לבקש קוד חדש באתר 🙂' : `שלום! כאן YALLA KIDS 👋 לשאלות ועזרה: ${env.PUBLIC_URL || ''}/help/`);
+          continue;
+        }
+        if (p.phone) continue;
         const phone = normalizePhone(m.from);
         if (!phone) { waReply(env, m.from, 'כרגע אפשר להתחבר רק עם מספר נייד ישראלי.'); continue; }
         if (p.purpose === 'confirm' && db.accounts[p.aid]?.phone !== phone) { waReply(env, m.from, 'צריך לשלוח את הקוד מהטלפון שרשום בחשבון.'); continue; }
@@ -460,8 +472,11 @@ export function createApp(env = process.env) {
 
     if (path === '/api/billing/checkout' && M === 'POST') {
       if (!BILLING_ON) return send(res, 503, { error: 'billing_closed' });
-      const plan = PLANS[(await json(req)).plan];
+      const cb = await json(req); const plan = PLANS[cb.plan];
       if (!plan || !plan.purchasable) return send(res, 400, { error: 'bad_plan' });
+      // Grow needs the payer's full name for the tax invoice. It goes to Grow only; we don't store it.
+      const fullName = String(cb.fullName || '').trim().replace(/\s+/g, ' ');
+      if (provider.needsName && (fullName.length > 60 || fullName.split(' ').filter((w) => w.length >= 2).length < 2)) return send(res, 400, { error: 'name_required' });
       if (acc.sub?.status === 'active' && entitled(acc.sub)) return send(res, 409, { error: 'already_subscribed' });
       const ref = newId('co');
       db.checkouts[ref] = { aid: acc.id, plan: plan.id, at: new Date().toISOString() };
@@ -469,7 +484,7 @@ export function createApp(env = process.env) {
       save();
       try {
         const base = env.PUBLIC_URL || '';
-        const { url: payUrl } = await provider.createCheckout({ ref, plan, email: acc.email, phone: acc.phone, returnUrl: `${base}/account/?paid=1`, notifyUrl: `${base}/api/billing/webhook/${provider.name}` });
+        const { url: payUrl } = await provider.createCheckout({ ref, plan, email: acc.email, phone: acc.phone, fullName, returnUrl: `${base}/account/?paid=1`, cancelUrl: `${base}/account/`, notifyUrl: `${base}/api/billing/webhook/${provider.name}` });
         audit({ ev: 'checkout_started', aid: acc.id, plan: plan.id });
         return send(res, 200, { url: payUrl });
       } catch { return send(res, 502, { error: 'provider_unavailable' }); }
@@ -532,6 +547,27 @@ export function createApp(env = process.env) {
   }
 
   // ---------- admin (127.0.0.1:ADMIN_PORT only, bearer token) ----------
+  // What is configured, what is missing, and what to paste where. Never prints a secret, only whether it is set.
+  async function selfcheck(ping) {
+    const has = (k) => !!(env[k] && String(env[k]).trim());
+    const pub = env.PUBLIC_URL || '';
+    const miss = (keys) => keys.filter((k) => !has(k));
+    const grow = { provider: provider.name, charging: BILLING_ON, sandbox: env.GROW_SANDBOX === '1',
+      missing: miss(['GROW_USER_ID', 'GROW_PAGE_CODE_RECURRING', 'GROW_PAGE_CODE_ONETIME', 'GROW_WEBHOOK_KEY', 'PUBLIC_URL']),
+      notifyUrl: `${pub}/api/billing/webhook/grow?k=…`, note: 'Grow gets the notify address with every checkout; nothing to paste at Grow.' };
+    if (env.GROW_WEBHOOK_KEY && String(env.GROW_WEBHOOK_KEY).length < 24) grow.missing.push('GROW_WEBHOOK_KEY (too short: openssl rand -hex 24)');
+    const whatsapp = { signIn: WA_ON, number: WA_NUMBER || null, replies: has('WA_TOKEN') && has('WA_PHONE_NUMBER_ID'),
+      missing: miss(['WA_NUMBER', 'WA_APP_SECRET', 'WA_VERIFY_TOKEN']), pasteInMeta: { callbackUrl: `${pub}/api/whatsapp/webhook`, verifyToken: has('WA_VERIFY_TOKEN') ? 'the WA_VERIFY_TOKEN value' : null, field: 'messages' } };
+    if (ping) whatsapp.ping = await waPing(env);
+    const warnings = [];
+    if (!/^https:\/\//.test(pub)) warnings.push('PUBLIC_URL must start with https://');
+    if (env.MOCK_PAY === '1') warnings.push('MOCK_PAY=1 must never be on the live server');
+    if (env.SMS_DEV_ECHO === '1') warnings.push('SMS_DEV_ECHO=1 must never be on the live server');
+    if (BILLING_ON && provider.name === 'mock') warnings.push('charging is on with the mock provider');
+    if (BILLING_ON && provider.name === 'grow' && grow.missing.length) warnings.push('charging is on but Grow keys are missing');
+    return { ok: !warnings.length, grow, whatsapp, sms: { provider: env.SMS_PROVIDER || 'mock', sendsReal: (env.SMS_PROVIDER || 'mock') !== 'mock' }, liveTalk: LIVE_ON && !!KEY, warnings };
+  }
+
   async function admin(req, res) {
     // The support console page itself holds no data; it asks for the token and calls /support/* with it.
     if (req.method === 'GET' && new URL(req.url, 'http://x').pathname === '/support/console' && support) return support.admin(req, res, '/support/console', { send, json });
@@ -540,6 +576,7 @@ export function createApp(env = process.env) {
     if (new URL(req.url, 'http://x').pathname.startsWith('/support/') && support) return support.admin(req, res, new URL(req.url, 'http://x').pathname, { send, json });
     const path = new URL(req.url, 'http://x').pathname; const b = req.method === 'POST' ? await json(req) : {};
     const find = (who) => db.accounts[db.byEmail[String(who || '').toLowerCase()] || db.byPhone[normalizePhone(who)]];
+    if (path === '/selfcheck') return send(res, 200, await selfcheck(new URL(req.url, 'http://x').searchParams.get('ping') === '1'));
     if (path === '/pilot-codes') {
       const n = Math.min(+b.count || 1, 200), days = +b.days || PLANS.pilot.days, codes = [];
       const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

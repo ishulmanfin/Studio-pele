@@ -28,23 +28,33 @@ Card details never reach our server (hosted payment page).
 Subscription states: `pilot` → `active` → (`past_due`, 3-day grace) → `canceled` (access to the end of the paid period).
 Cancel stops renewals at once; the parent keeps what they paid for.
 
-## Payment provider (recommendation)
-Stripe does not onboard Israeli businesses (to my knowledge; verify), and app-store billing only applies to a store build.
-For the web/PWA in Israel the recommendation is **Cardcom**: hosted payment page (no card data on our side, minimal PCI scope),
-recurring charges ("הוראת קבע") with a stored token, automatic Hebrew tax invoices/receipts, Bit/Apple Pay/Google Pay
-support, webhook (IPN) on every charge. Alternatives with the same shape: PayPlus, Grow (Meshulam).
-Prices are per contract: get quotes from two before signing. **Opening an account is the owner's step, and nothing is
-paid without the owner's written OK.**
+## Payment provider: Grow (formerly Meshulam)
+Built and tested against a local stand-in of Grow's "Light server 1.0" API (`server/lib/billing.mjs`, provider `grow`):
+- **Hosted payment page**: the parent pays on Grow's page (card, Bit, Apple Pay, Google Pay as enabled on the page).
+  No card data on our side. Grow issues the tax invoice automatically, so it needs the payer's full name; the parents'
+  page asks for it, sends it to Grow only, and we don't store it.
+- **Monthly (39 ₪)**: a Grow page set up as a standing order (הוראת קבע). Each renewal arrives as a callback and
+  extends by 30 days; a failed renewal goes to `past_due` with 3 days of grace. Cancel calls `updateDirectDebit`
+  (status 2 = stop) with the first payment's token.
+- **Yearly (349 ₪)**: a regular one-time page. One payment, 365 days, **no auto-renew** (terms say so).
+- **Callbacks are not signed by Grow**, so each one must pass three checks: the secret `?k=GROW_WEBHOOK_KEY` in our
+  notify address (sent to Grow with every checkout, nothing to paste at Grow); the first payment's `processId` must
+  match the checkout we opened; and we confirm the payment back to Grow with `approveTransaction`. Events are
+  idempotent by transaction id.
+- Keys: `GROW_USER_ID`, `GROW_PAGE_CODE_RECURRING`, `GROW_PAGE_CODE_ONETIME`, `GROW_WEBHOOK_KEY`, `GROW_SANDBOX`.
+  `node server/admin.mjs selfcheck` lists what's missing.
+- Before the paid launch: one real sandbox payment, renewal and cancel against Grow's sandbox, because the field
+  names of the callback were built from Grow's public docs and should be confirmed once with a real callback.
 
-Adding the real provider = one entry in `server/lib/billing.mjs` (`createCheckout`, `cancel`, `parseWebhook`) built
-against the provider's sandbox; the rest of the system does not change.
+Opening the Grow account is the owner's step; **nothing is paid without the owner's written OK.**
 
 ## Turning things on (in order)
 1. Deploy the API (`server/`) to `/opt/yalla-api/`, env from `server/yalla-api.env.example`, service file, Caddy snippet.
    Ship `account/` into the web root. Create pilot codes: `node server/admin.mjs pilot-codes 20`.
 2. Pilot: give each family a code. Live talk works for them within the caps. No card asked.
-3. Paid launch (owner's go): provider account + sandbox, adapter + test against the sandbox, lawyer review of the
-   terms and privacy texts, fill in business details, then `BILLING_PROVIDER=<provider>`, `BILLING_ENABLED=1`.
+3. Paid launch (owner's go): Grow account, keys in the env with `GROW_SANDBOX=1`, one sandbox payment end to end,
+   lawyer review of the terms and privacy texts, fill in business details, then `BILLING_PROVIDER=grow`,
+   `GROW_SANDBOX=0`, `BILLING_ENABLED=1`. Check with `node server/admin.mjs selfcheck`.
 
 ## The kid app (live-talk client) needs two small changes
 - `GET /api/mika-session` now answers `401 login_required`, `402 subscription_required`, `403 parent_consent_required`,
@@ -60,7 +70,8 @@ against the provider's sandbox; the rest of the system does not change.
 - App-store billing (only if a store build happens; Apple requires In-App Purchase there).
 
 ## Tests
-`npm run test:api` : 13 tests (sign-up rules, login + brute-force lockout, CSRF, live-talk gating and caps,
+`npm run test:api` : 27 tests, including Grow (checkout, wrong key, wrong processId, renewal, failure, cancel,
+yearly one-time) and the owner self-check. Earlier set: (sign-up rules, login + brute-force lockout, CSRF, live-talk gating and caps,
 reconciliation, billing closed by default, mock checkout → pay → cancel, signed/idempotent webhooks with grace period,
 account deletion, password change + admin reset, legacy fallback, retention, signup limiter).
 
@@ -76,3 +87,5 @@ Opening the account is the owner's step; nothing is paid without the owner's wri
 3. Put `WA_NUMBER`, `WA_APP_SECRET`, `WA_VERIFY_TOKEN` (and optionally `WA_TOKEN`, `WA_PHONE_NUMBER_ID`) in `/etc/yalla-api.env`.
 Cost: messages a user sends to the business are free, and replies inside 24 h are free service messages (Meta pricing,
 verify at setup). We never send a first message, so there are no template charges.
+4. `node server/admin.mjs selfcheck ping` checks the token can see the number. A parent who writes anything other
+   than a code gets one short pointer to the help page per day (free, inside the 24-hour window).

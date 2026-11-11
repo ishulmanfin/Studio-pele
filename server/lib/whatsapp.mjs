@@ -23,11 +23,25 @@ export function inboundTexts(body) {
   return out;
 }
 
+const graph = (env) => env.WA_GRAPH_BASE || 'https://graph.facebook.com/v21.0';
+
+// Self-check for the owner: does the token see the phone number? Returns { ok, name?, number?, error? }.
+export async function waPing(env) {
+  if (!env.WA_TOKEN || !env.WA_PHONE_NUMBER_ID) return { ok: false, error: 'WA_TOKEN / WA_PHONE_NUMBER_ID not set (only needed for replies)' };
+  try {
+    const r = await fetch(`${graph(env)}/${encodeURIComponent(env.WA_PHONE_NUMBER_ID)}?fields=display_phone_number,verified_name,quality_rating`, {
+      headers: { authorization: `Bearer ${env.WA_TOKEN}` }, signal: AbortSignal.timeout(8000) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return { ok: false, error: j?.error?.message || `HTTP ${r.status}` };
+    return { ok: true, name: j.verified_name, number: j.display_phone_number, quality: j.quality_rating };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
 // A free-form reply (allowed and free within 24 h of the parent's message). Best effort.
 export async function waReply(env, toDigits, text) {
   if (!env.WA_TOKEN || !env.WA_PHONE_NUMBER_ID) return false;
   try {
-    const r = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(env.WA_PHONE_NUMBER_ID)}/messages`, {
+    const r = await fetch(`${graph(env)}/${encodeURIComponent(env.WA_PHONE_NUMBER_ID)}/messages`, {
       method: 'POST', headers: { authorization: `Bearer ${env.WA_TOKEN}`, 'content-type': 'application/json' },
       body: JSON.stringify({ messaging_product: 'whatsapp', to: toDigits, type: 'text', text: { body: text } }), signal: AbortSignal.timeout(5000) });
     return r.ok;

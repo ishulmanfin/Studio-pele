@@ -325,3 +325,96 @@ test('WhatsApp reverse sign-in: parent sends the code, signed webhook links the 
   assert.equal((await t.req('POST', '/api/auth/wa/start', {})).body.error, 'wa_unavailable');
   t.stop();
 });
+
+test('Grow: hosted page, secret-key callback, processId match, renewal, failure, cancel stops the standing order', async () => {
+  const calls = [];
+  const grow = http.createServer(async (req, res) => {
+    let raw = ''; for await (const c of req) raw += c;
+    const f = Object.fromEntries(new URLSearchParams(raw)); const method = req.url.split('/').pop(); calls.push({ method, f });
+    const data = method === 'createPaymentProcess' ? { processId: 777, processToken: 'pt', url: 'https://pay.example/p/777' } : {};
+    res.end(JSON.stringify({ status: 1, err: '', data }));
+  });
+  const growUrl = await listen(grow);
+  const s = await boot({ BILLING_ENABLED: '1', BILLING_PROVIDER: 'grow', GROW_API_BASE: growUrl, GROW_USER_ID: 'u1',
+    GROW_PAGE_CODE_RECURRING: 'rec', GROW_PAGE_CODE_ONETIME: 'one', GROW_WEBHOOK_KEY: 'gk', PUBLIC_URL: 'https://yalla.example' });
+  try {
+    await s.req('POST', '/api/account/signup', SIGNUP);
+    assert.equal((await s.req('GET', '/api/plans')).body.needsName, true);
+    assert.equal((await s.req('POST', '/api/billing/checkout', { plan: 'monthly', fullName: 'Dana' })).body.error, 'name_required');
+    const co = await s.req('POST', '/api/billing/checkout', { plan: 'monthly', fullName: '  Dana   Levi ' });
+    assert.equal(co.body.url, 'https://pay.example/p/777');
+    const cp = calls.find((c) => c.method === 'createPaymentProcess').f;
+    assert.equal(cp.pageCode, 'rec'); assert.equal(cp.sum, '39.00'); assert.equal(cp['pageField[fullName]'], 'Dana Levi');
+    assert.equal(cp.notifyUrl, 'https://yalla.example/api/billing/webhook/grow?k=gk');
+    const ref = cp.cField1; assert.ok(ref);
+    const form = (d) => new URLSearchParams({ status: '1', err: '', ...Object.fromEntries(Object.entries(d).map(([k, v]) => [`data[${k}]`, v])) }).toString();
+    const hook = (d, k = 'gk') => s.req('POST', `/api/billing/webhook/grow?k=${k}`, form(d), { 'content-type': 'application/x-www-form-urlencoded', cookie: '' });
+    const first = { 'customFields][cField1': ref, 'customFields][cField2': 'monthly', processId: '777', transactionId: 't1', transactionToken: 'tt', asmachta: 'a1', directDebitId: 'dd9', statusCode: '2', sum: '39' };
+    assert.equal((await hook(first, 'wrong')).status, 401, 'wrong secret key');
+    assert.equal((await hook({ ...first, processId: '666' })).status, 401, 'not the checkout we opened');
+    assert.equal((await hook(first)).body.ok, true);
+    assert.ok(calls.some((c) => c.method === 'approveTransaction' && c.f.transactionId === 't1'), 'payment confirmed back to Grow');
+    let me = (await s.req('GET', '/api/account/me')).body;
+    assert.equal(me.subscription.status, 'active'); assert.equal(me.subscription.plan, 'monthly');
+    assert.equal((await hook(first)).body.duplicate, true);
+    const end1 = Date.parse(me.subscription.periodEnd);
+    // A renewal: new transaction on the same standing order, new processId.
+    await hook({ processId: '901', transactionId: 't2', transactionToken: 'tt2', directDebitId: 'dd9', statusCode: '2' });
+    me = (await s.req('GET', '/api/account/me')).body;
+    assert.ok(Math.abs(Date.parse(me.subscription.periodEnd) - end1 - 30 * 864e5) < 5000);
+    await hook({ processId: '902', transactionId: 't3', directDebitId: 'dd9', statusCode: '3' });
+    assert.equal((await s.req('GET', '/api/account/me')).body.subscription.status, 'past_due');
+    me = (await s.req('POST', '/api/billing/cancel', {})).body;
+    assert.equal(me.subscription.status, 'canceled');
+    const stop = calls.find((c) => c.method === 'updateDirectDebit').f;
+    assert.equal(stop.transactionToken, 'tt'); assert.equal(stop.changeStatus, '2', 'the first standing-order token is the one cancelled');
+  } finally { s.stop(); grow.close(); }
+});
+
+test('Grow yearly is one payment: one-time page, cancel calls nothing at Grow', async () => {
+  const calls = [];
+  const grow = http.createServer(async (req, res) => {
+    let raw = ''; for await (const c of req) raw += c; calls.push(req.url.split('/').pop());
+    res.end(JSON.stringify({ status: 1, data: { processId: 5, processToken: 'p', url: 'https://pay.example/5' } }));
+  });
+  const growUrl = await listen(grow);
+  const s = await boot({ BILLING_ENABLED: '1', BILLING_PROVIDER: 'grow', GROW_API_BASE: growUrl, GROW_USER_ID: 'u1',
+    GROW_PAGE_CODE_RECURRING: 'rec', GROW_PAGE_CODE_ONETIME: 'one', GROW_WEBHOOK_KEY: 'gk' });
+  try {
+    await s.req('POST', '/api/account/signup', SIGNUP);
+    await s.req('POST', '/api/billing/checkout', { plan: 'yearly', fullName: 'Dana Levi' });
+    const ref = [...Object.keys(s.app.db.checkouts)][0];
+    const raw = new URLSearchParams({ status: '1', 'data[cField1]': ref, 'data[processId]': '5', 'data[transactionId]': 'y1', 'data[transactionToken]': 'yt', 'data[statusCode]': '2' }).toString();
+    assert.equal((await s.req('POST', '/api/billing/webhook/grow?k=gk', raw, { 'content-type': 'application/x-www-form-urlencoded', cookie: '' })).body.ok, true);
+    assert.equal((await s.req('GET', '/api/account/me')).body.subscription.plan, 'yearly');
+    assert.equal((await s.req('POST', '/api/billing/cancel', {})).body.subscription.status, 'canceled');
+    assert.ok(!calls.includes('updateDirectDebit'));
+  } finally { s.stop(); grow.close(); }
+});
+
+test('owner self-check: shows what is missing without secrets; WhatsApp ping and the help nudge use the Graph API', async () => {
+  const sent = [];
+  const graph = http.createServer(async (req, res) => {
+    let raw = ''; for await (const c of req) raw += c;
+    if (req.headers.authorization !== 'Bearer watok') { res.writeHead(401); return res.end(JSON.stringify({ error: { message: 'bad token' } })); }
+    if (req.method === 'GET') return res.end(JSON.stringify({ verified_name: 'YALLA KIDS', display_phone_number: '+972 3-000-0000', quality_rating: 'GREEN' }));
+    sent.push(JSON.parse(raw)); res.end('{}');
+  });
+  const graphUrl = await listen(graph);
+  const s = await boot({ WA_NUMBER: '97230000000', WA_APP_SECRET: 'appsec-very-secret', WA_VERIFY_TOKEN: 'vt', WA_TOKEN: 'watok', WA_PHONE_NUMBER_ID: '123',
+    WA_GRAPH_BASE: graphUrl, PUBLIC_URL: 'https://yalla.example', BILLING_PROVIDER: 'grow', GROW_USER_ID: 'u1' });
+  try {
+    const sc = await s.adm('/selfcheck?ping=1');
+    assert.equal(sc.whatsapp.signIn, true); assert.equal(sc.whatsapp.ping.ok, true); assert.equal(sc.whatsapp.ping.name, 'YALLA KIDS');
+    assert.equal(sc.whatsapp.pasteInMeta.callbackUrl, 'https://yalla.example/api/whatsapp/webhook');
+    assert.deepEqual(sc.grow.missing, ['GROW_PAGE_CODE_RECURRING', 'GROW_PAGE_CODE_ONETIME', 'GROW_WEBHOOK_KEY']);
+    assert.ok(!JSON.stringify(sc).includes('appsec-very-secret') && !JSON.stringify(sc).includes('watok'), 'no secret in the report');
+    assert.equal((await fetch(s.adminUrl + '/selfcheck')).status, 401);
+    const hook = (text) => { const raw = JSON.stringify({ entry: [{ changes: [{ value: { messages: [{ from: '972501112233', type: 'text', text: { body: text } }] } }] }] });
+      return s.req('POST', '/api/whatsapp/webhook', raw, { 'x-hub-signature-256': 'sha256=' + createHmac('sha256', 'appsec-very-secret').update(raw).digest('hex'), cookie: '' }); };
+    await hook('שלום, יש לי שאלה'); await hook('עוד שאלה');
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(sent.length, 1, 'one pointer to help per number per day');
+    assert.match(sent[0].text.body, /https:\/\/yalla\.example\/help\//);
+  } finally { s.stop(); graph.close(); }
+});
