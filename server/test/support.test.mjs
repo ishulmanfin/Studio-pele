@@ -7,7 +7,7 @@ import { createApp } from '../yalla-api.mjs';
 import { createSupport, scrub, cleanDiag } from '../lib/support.mjs';
 
 const listen = (s) => new Promise((r) => s.listen(0, '127.0.0.1', () => r(`http://127.0.0.1:${s.address().port}`)));
-async function boot() {
+async function boot(t) {
   const dir = mkdtempSync(`${tmpdir()}/yks-`);
   const app = createApp({ DATA_DIR: dir, COOKIE_INSECURE: '1', ADMIN_TOKEN: 'adm', SMS_DEV_ECHO: '1' });
   const base = await listen(app.server), adminBase = await listen(app.adminServer);
@@ -19,7 +19,9 @@ async function boot() {
   };
   const adm = async (path, body) => { const r = await fetch(adminBase + path, { method: body ? 'POST' : 'GET', headers: { authorization: 'Bearer adm', 'content-type': 'application/json' }, body: body && JSON.stringify(body) }); return { status: r.status, body: await r.json() }; };
   const signIn = async (phone = '0541112222') => { const c = await req('POST', '/api/auth/code', { phone }); return req('POST', '/api/auth/verify', { phone, code: c.body.devCode, acceptTerms: true, parentAdult: true }); };
-  return { req, adm, signIn, dir, stop: () => { app.close(); app.server.close(); app.adminServer.close(); }, newSession: () => { cookie = ''; } };
+  const stop = () => { app.close(); app.server.close(); app.adminServer.close(); };
+  t?.after(stop);
+  return { req, adm, signIn, dir, stop, newSession: () => { cookie = ''; } };
 }
 
 test('scrub removes personal details a parent may paste', () => {
@@ -34,8 +36,8 @@ test('diagnostics keep only technical whitelisted fields', () => {
   assert.doesNotMatch(d.errors[0], /x\.y|p@x/); assert.deepEqual(d.fixes, ['cache']);
 });
 
-test('parent ticket flow: diagnostics, ticket, team reply, rating, owner overview', async () => {
-  const s = await boot();
+test('parent ticket flow: diagnostics, ticket, team reply, rating, owner overview', async (t0) => {
+  const s = await boot(t0);
   assert.equal((await s.req('GET', '/api/support/status')).status, 200, 'status is public');
   assert.equal((await s.req('GET', '/api/support/tickets')).status, 401);
   await s.signIn();
@@ -56,19 +58,19 @@ test('parent ticket flow: diagnostics, ticket, team reply, rating, owner overvie
   assert.equal((await s.req('POST', `/api/support/tickets/${t.body.id}/rate`, { score: 5 })).status, 200);
   const ov = await s.adm('/support/overview');
   assert.equal(ov.body.csat, 5); assert.equal(ov.body.medianFirstReplyMin, 0);
-  assert.equal((await s.adm('/support/action', { ticket: t.body.id, action: 'grant_days' })).status, 501, 'host hook not wired yet');
+  assert.equal((await s.adm('/support/action', { ticket: t.body.id, action: 'grant_days', days: 7 })).status, 200);
+  assert.ok((await s.adm(`/support/tickets/${t.body.id}`)).body.family.periodEnd, 'grant started a plan');
+  assert.equal((await s.adm('/support/action', { ticket: t.body.id, action: 'pause' })).status, 501, 'pause is not offered by the host');
   assert.equal((await s.adm('/support/nothing')).status, 404);
   s.newSession(); await s.signIn('0549998888');
   assert.equal((await s.req('GET', `/api/support/tickets/${t.body.id}`)).status, 404, 'another family cannot read it');
-  s.stop();
 });
 
-test('cancel intent records the reason and offers help', async () => {
-  const s = await boot(); await s.signIn();
+test('cancel intent records the reason and offers help', async (t0) => {
+  const s = await boot(t0); await s.signIn();
   const r = await s.req('POST', '/api/support/cancel-intent', { reason: 'tech' });
   assert.ok(r.body.offers.some((o) => o.id === 'help'));
   assert.equal((await s.adm('/support/overview')).body.cancelReasons30d.tech, 1);
-  s.stop();
 });
 
 test('proactive care: once a week per kind, compensates, notifies, and forget() wipes the family', async () => {
