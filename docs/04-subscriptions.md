@@ -7,7 +7,8 @@ and a free pilot; until then families get in with free pilot codes.
 | Piece | Where |
 |---|---|
 | Parent sign-in with phone + 6-digit SMS code (one flow signs in or signs up; HttpOnly session cookie, 1 year). Codes: hashed, in memory, 5 min, 5 tries, 60 s resend, 3 SMS per phone per 15 min, 10 per IP per hour, SMS_DAY_CAP per day | `server/yalla-api.mjs`, `server/lib/sms.mjs` |
-| Sensitive steps (live talk ON, delete account) need a fresh SMS code to the account phone | `/api/account/confirm-code` |
+| **WhatsApp sign-in (main, free):** page shows a wa.me link (and a QR on tablets) with a ready message `כניסה ל-YALLA KIDS: YK-XXXXXXXX`; the parent presses Send; Meta's signed webhook tells us the sender's number; the browser that started it (bound by a secret) finishes sign-in. Inbound messages are free; our one-line reply is a free service message. Codes 10 min, single use | `server/lib/whatsapp.mjs`, `/api/auth/wa/*`, `/api/whatsapp/webhook` |
+| Sensitive steps (live talk ON, delete account) need a fresh confirmation from the account phone: WhatsApp (`/api/account/confirm-wa`) or SMS (`/api/account/confirm-code`) | same |
 | Email + password accounts still work in the API (operator/legacy); the page uses phone only | same |
 | Consent at sign-up: parent is 18+ and accepts terms + privacy (versions stored with the date) | same |
 | Plans: free pilot (60 days by code), monthly 39 ₪, yearly 349 ₪ (incl. VAT) | `server/lib/plans.mjs` |
@@ -68,3 +69,10 @@ account deletion, password change + admin reset, legacy fallback, retention, sig
 Recommended: an Israeli SMS gateway with an HTTP API and a registered sender name (e.g. InforU or 019 SMS);
 priced per message in agorot, get a quote first. Adding it = one entry in `server/lib/sms.mjs` (`send(phone, text)`).
 Opening the account is the owner's step; nothing is paid without the owner's written OK.
+
+## WhatsApp setup (owner, free)
+1. Meta Business account + WhatsApp Business Platform (Cloud API) app; add a dedicated business phone number (not a personal WhatsApp).
+2. Webhook URL `https://<site>/api/whatsapp/webhook`, verify token = `WA_VERIFY_TOKEN`, subscribe to `messages`.
+3. Put `WA_NUMBER`, `WA_APP_SECRET`, `WA_VERIFY_TOKEN` (and optionally `WA_TOKEN`, `WA_PHONE_NUMBER_ID`) in `/etc/yalla-api.env`.
+Cost: messages a user sends to the business are free, and replies inside 24 h are free service messages (Meta pricing,
+verify at setup). We never send a first message, so there are no template charges.

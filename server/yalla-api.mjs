@@ -12,6 +12,7 @@ import { PLANS, LIVE, entitled, publicPlans, addDays } from './lib/plans.mjs';
 import { hashPassword, checkPassword, DUMMY_HASH, newToken, sha256, newId, limiter, validEmail, validPassword } from './lib/auth.mjs';
 import { getProvider } from './lib/billing.mjs';
 import { getSms, normalizePhone, maskPhone, codeBook } from './lib/sms.mjs';
+import { waBook, waSignatureOk, inboundTexts, findWaCode, waReply } from './lib/whatsapp.mjs';
 
 // Versions of the documents a parent agrees to at sign-up. Bump when the text changes.
 export const TERMS_VERSION = '2026-11-draft';
@@ -57,6 +58,9 @@ export function createApp(env = process.env) {
   const SMS_DAY_CAP = num('SMS_DAY_CAP', 200);                       // cost guard: SMS messages per day, all families
   let smsDay = { d: '', n: 0 };
   const codes = codeBook();
+  const wa = waBook();
+  const WA_NUMBER = (env.WA_NUMBER || '').replace(/\D/g, '');            // the business number parents message, digits only
+  const WA_ON = !!(WA_NUMBER && env.WA_APP_SECRET);
 
   // Read-only account facts for other modules (support). Phone is masked; no child data exists to share.
   function facts(aid) {
@@ -86,7 +90,7 @@ export function createApp(env = process.env) {
       a.bonus = { day: ilDay(), min: Math.min(bonusMin(a) + Math.min(+min || 3, 6), 6) }; save(); audit({ ev: 'support_compensate', aid, min: a.bonus.min });
       return true;
     },
-    health: () => ({ api: true, liveTalk: LIVE_ON && !!KEY, billing: BILLING_ON }),
+    health: () => ({ api: true, liveTalk: LIVE_ON && !!KEY, billing: BILLING_ON, whatsapp: WA_ON }),
   };
   const support = supportMod?.createSupport?.({ dir: DIR, env, audit, facts, listAccountIds: () => Object.keys(db.accounts), ...hooks }) || null;
   const care = (aid, what) => { try { support?.care?.(aid, what); } catch {} };
@@ -206,7 +210,7 @@ export function createApp(env = process.env) {
     };
   }
 
-  const smsPhone = limiter(3, 15 * 60e3), smsIp = limiter(10, 3600e3), verifyIp = limiter(30, 15 * 60e3);
+  const waIp = limiter(20, 3600e3), smsPhone = limiter(3, 15 * 60e3), smsIp = limiter(10, 3600e3), verifyIp = limiter(30, 15 * 60e3);
   const loginIp = limiter(10, 15 * 60e3), loginEmail = limiter(5, 15 * 60e3), signupIp = limiter(5, 3600e3), redeemIp = limiter(10, 3600e3);
 
   // ---------- subscription state changes (one place, audited, idempotent) ----------
@@ -240,7 +244,7 @@ export function createApp(env = process.env) {
     const M = req.method;
 
     if (path === '/api/health') return send(res, 200, { ok: true, liveTalk: LIVE_ON && !!KEY, billing: BILLING_ON });
-    if (path === '/api/plans' && M === 'GET') return send(res, 200, { plans: publicPlans(), billingOpen: BILLING_ON, terms: TERMS_VERSION, privacy: PRIVACY_VERSION });
+    if (path === '/api/plans' && M === 'GET') return send(res, 200, { plans: publicPlans(), billingOpen: BILLING_ON, whatsapp: WA_ON, terms: TERMS_VERSION, privacy: PRIVACY_VERSION });
 
     // Provider webhooks: no cookie, no CSRF check, authenticity comes from the provider's signature.
     const wh = path.match(/^\/api\/billing\/webhook\/([a-z]+)$/);
@@ -250,6 +254,28 @@ export function createApp(env = process.env) {
       try { ev = provider.parseWebhook({ headers: req.headers, raw }); } catch {}
       if (!ev) { audit({ ev: 'webhook_rejected', ip: ipOf(req) }); return send(res, 401, { error: 'bad signature' }); }
       return send(res, 200, applyEvent(ev));
+    }
+
+    // WhatsApp webhook (Meta). GET = subscription check, POST = signed message events. Outside basic auth.
+    if (path === '/api/whatsapp/webhook' && M === 'GET') {
+      const q = url.searchParams;
+      if (q.get('hub.mode') === 'subscribe' && env.WA_VERIFY_TOKEN && q.get('hub.verify_token') === env.WA_VERIFY_TOKEN) { res.writeHead(200, { 'content-type': 'text/plain' }); return res.end(q.get('hub.challenge') || ''); }
+      return send(res, 403, { error: 'forbidden' });
+    }
+    if (path === '/api/whatsapp/webhook' && M === 'POST') {
+      const raw = await readBody(req);
+      if (!waSignatureOk(env.WA_APP_SECRET, raw, req.headers['x-hub-signature-256'])) { audit({ ev: 'wa_webhook_rejected', ip: ipOf(req) }); return send(res, 401, { error: 'bad signature' }); }
+      let body = {}; try { body = JSON.parse(raw); } catch {}
+      for (const m of inboundTexts(body)) {
+        const code = findWaCode(m.text); const p = code && wa.get(code);
+        if (!p || p.phone) continue;
+        const phone = normalizePhone(m.from);
+        if (!phone) { waReply(env, m.from, 'כרגע אפשר להתחבר רק עם מספר נייד ישראלי.'); continue; }
+        if (p.purpose === 'confirm' && db.accounts[p.aid]?.phone !== phone) { waReply(env, m.from, 'צריך לשלוח את הקוד מהטלפון שרשום בחשבון.'); continue; }
+        p.phone = phone;
+        waReply(env, m.from, p.purpose === 'confirm' ? 'אושר ✅ אפשר לחזור ל-YALLA KIDS.' : 'מחוברים ✅ אפשר לחזור ל-YALLA KIDS.');
+      }
+      return send(res, 200, { ok: true });   // always 200 to Meta once the signature is good
     }
 
     if (path === '/api/mika-session' && M === 'GET') return mikaSession(req, res);
@@ -294,6 +320,33 @@ export function createApp(env = process.env) {
           consent: { terms: TERMS_VERSION, privacy: PRIVACY_VERSION, parentAdult: true, at: now }, sub: null };
         db.accounts[acc.id] = acc; db.byPhone[phone] = acc.id; audit({ ev: 'signup', aid: acc.id, via: 'phone' });
       }
+      return send(res, isNew ? 201 : 200, view(acc), { 'set-cookie': startSession(res, acc) });
+    }
+
+    const waStart = (purpose, aid) => {
+      if (!WA_ON) return [503, { error: 'wa_unavailable' }];
+      if (!waIp(ipOf(req))) return [429, { error: 'too_many', retryAfterSec: 600 }];
+      const o = wa.open(purpose, aid); if (!o) return [503, { error: 'wa_unavailable' }];
+      const text = `${purpose === 'confirm' ? 'אישור' : 'כניסה'} ל-YALLA KIDS: ${o.code}`;
+      return [200, { ...o, waLink: `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(text)}`, expiresInSec: 600 }];
+    };
+    if (path === '/api/auth/wa/start' && M === 'POST') { const [st, body] = waStart('login', null); return send(res, st, body); }
+
+    if (path === '/api/auth/wa/finish' && M === 'POST') {
+      const b = await json(req); const p = wa.get(String(b.code || ''));
+      if (!p || p.purpose !== 'login') return send(res, 410, { error: 'code_expired' });
+      if (p.secret !== b.secret) return send(res, 404, { error: 'not found' });
+      if (!p.phone) return send(res, 202, { pending: true });
+      let acc = db.accounts[db.byPhone[p.phone]]; const isNew = !acc;
+      if (isNew) {
+        if (!(b.acceptTerms === true && b.parentAdult === true)) return send(res, 400, { error: 'consent_required' });
+        if (!SIGNUP_ON) return send(res, 403, { error: 'signup_closed' });
+        const now = new Date().toISOString();
+        acc = { id: newId('acc'), phone: p.phone, created: now, liveTalk: false,
+          consent: { terms: TERMS_VERSION, privacy: PRIVACY_VERSION, parentAdult: true, at: now }, sub: null };
+        db.accounts[acc.id] = acc; db.byPhone[p.phone] = acc.id; audit({ ev: 'signup', aid: acc.id, via: 'whatsapp' });
+      }
+      wa.drop(String(b.code));
       return send(res, isNew ? 201 : 200, view(acc), { 'set-cookie': startSession(res, acc) });
     }
 
@@ -343,7 +396,17 @@ export function createApp(env = process.env) {
       const r = await sendCode(`confirm:${acc.id}`, acc.phone, ipOf(req));
       return send(res, r.status, r.body);
     }
+    if (path === '/api/account/confirm-wa' && M === 'POST') {
+      if (!acc.phone) return send(res, 400, { error: 'no_phone' });
+      const [st, body] = waStart('confirm', acc.id); return send(res, st, body);
+    }
     const stepUp = (b) => {
+      if (b.waCode !== undefined) {
+        const p = wa.get(String(b.waCode));
+        if (!p || p.purpose !== 'confirm' || p.aid !== acc.id || p.secret !== b.waSecret) return [410, 'code_expired'];
+        if (!p.phone) return [409, 'not_confirmed_yet'];
+        wa.drop(String(b.waCode)); return null;
+      }
       if (acc.phone && b.code !== undefined) { const c = codes.check(`confirm:${acc.id}`, b.code); return c === 'ok' ? null : c === 'expired' ? [410, 'code_expired'] : [401, 'bad_code']; }
       if (!loginEmail(acc.email || acc.id)) return [429, 'too_many'];
       return acc.pw && checkPassword(String(b.password || ''), acc.pw) ? null : [401, acc.phone ? 'bad_code' : 'bad_login'];

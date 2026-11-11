@@ -1,7 +1,7 @@
 # Inside the kids site block.
 # 1) Provider webhooks must reach the API WITHOUT basic auth (they are verified by signature). Put this
 #    BEFORE the basicauth directive / outside the protected route:
-@billing_webhook path /api/billing/webhook/* /preview/api/billing/webhook/*
+@billing_webhook path /api/billing/webhook/* /preview/api/billing/webhook/* /api/whatsapp/webhook /preview/api/whatsapp/webhook
 handle @billing_webhook {
 	reverse_proxy 127.0.0.1:8090
 }

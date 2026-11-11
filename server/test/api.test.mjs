@@ -6,6 +6,7 @@ import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createApp, ilDay } from '../yalla-api.mjs';
 import { hmac } from '../lib/billing.mjs';
+import { createHmac } from 'node:crypto';
 import { entitled } from '../lib/plans.mjs';
 
 let eleven, elevenUrl, durations = {};
@@ -292,6 +293,35 @@ test('support hooks: compensate adds 3 minutes today, grantDays extends, health'
   const before = Date.parse(s.app.db.accounts[aid].sub.periodEnd);
   const after = Date.parse(s.app.hooks.grantDays(aid, 7));
   assert.ok(Math.abs(after - before - 7 * 864e5) < 5000);
-  assert.deepEqual(s.app.hooks.health(), { api: true, liveTalk: true, billing: false });
+  assert.deepEqual(s.app.hooks.health(), { api: true, liveTalk: true, billing: false, whatsapp: false });
   s.stop();
+});
+
+test('WhatsApp reverse sign-in: parent sends the code, signed webhook links the phone; confirm for live talk', async () => {
+  const s = await boot({ WA_NUMBER: '+972 3 000 0000', WA_APP_SECRET: 'appsec', WA_VERIFY_TOKEN: 'vt' });
+  assert.equal((await s.req('GET', '/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=vt&hub.challenge=42')).status, 200);
+  const st = await s.req('POST', '/api/auth/wa/start', {});
+  assert.equal(st.status, 200); assert.match(st.body.code, /^YK-[A-Z0-9]{8}$/);
+  assert.ok(st.body.waLink.startsWith('https://wa.me/97230000000?text='));
+  assert.equal((await s.req('POST', '/api/auth/wa/finish', { code: st.body.code, secret: st.body.secret })).status, 202);
+  const hook = (from, text, sig) => { const raw = JSON.stringify({ entry: [{ changes: [{ value: { messages: [{ from, type: 'text', text: { body: text } }] } }] }] });
+    return s.req('POST', '/api/whatsapp/webhook', raw, { 'x-hub-signature-256': sig ?? 'sha256=' + createHmac('sha256', 'appsec').update(raw).digest('hex'), cookie: '' }); };
+  assert.equal((await hook('972501112233', `כניסה: ${st.body.code}`, 'sha256=bad')).status, 401);
+  assert.equal((await hook('972501112233', `כניסה ל-YALLA KIDS: ${st.body.code.toLowerCase()}`)).status, 200);
+  assert.equal((await s.req('POST', '/api/auth/wa/finish', { code: st.body.code, secret: 'wrong' })).status, 404, 'only the browser that started it');
+  assert.equal((await s.req('POST', '/api/auth/wa/finish', { code: st.body.code, secret: st.body.secret })).body.error, 'consent_required');
+  const done = await s.req('POST', '/api/auth/wa/finish', { code: st.body.code, secret: st.body.secret, acceptTerms: true, parentAdult: true });
+  assert.equal(done.status, 201); assert.equal(done.body.phone, '050-***-2233');
+  assert.equal((await s.req('POST', '/api/auth/wa/finish', { code: st.body.code, secret: st.body.secret })).status, 410, 'used once');
+  await s.adm('/grant', { phone: '0501112233', plan: 'pilot' });
+  const cf = await s.req('POST', '/api/account/confirm-wa', {});
+  assert.equal((await s.req('POST', '/api/account/live-talk', { enabled: true, waCode: cf.body.code, waSecret: cf.body.secret })).body.error, 'not_confirmed_yet');
+  await hook('972529999999', cf.body.code);   // someone else's phone: ignored
+  assert.equal((await s.req('POST', '/api/account/live-talk', { enabled: true, waCode: cf.body.code, waSecret: cf.body.secret })).body.error, 'not_confirmed_yet');
+  await hook('972501112233', cf.body.code);
+  assert.equal((await s.req('POST', '/api/account/live-talk', { enabled: true, waCode: cf.body.code, waSecret: cf.body.secret })).body.liveTalk, true);
+  s.stop();
+  const t = await boot();
+  assert.equal((await t.req('POST', '/api/auth/wa/start', {})).body.error, 'wa_unavailable');
+  t.stop();
 });
