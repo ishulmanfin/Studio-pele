@@ -6,7 +6,9 @@ and a free pilot; until then families get in with free pilot codes.
 ## What it does
 | Piece | Where |
 |---|---|
-| Parent sign-up / login (email + password, scrypt, HttpOnly session cookie, 30 days) | `server/yalla-api.mjs` |
+| Parent sign-in with phone + 6-digit SMS code (one flow signs in or signs up; HttpOnly session cookie, 1 year). Codes: hashed, in memory, 5 min, 5 tries, 60 s resend, 3 SMS per phone per 15 min, 10 per IP per hour, SMS_DAY_CAP per day | `server/yalla-api.mjs`, `server/lib/sms.mjs` |
+| Sensitive steps (live talk ON, delete account) need a fresh SMS code to the account phone | `/api/account/confirm-code` |
+| Email + password accounts still work in the API (operator/legacy); the page uses phone only | same |
 | Consent at sign-up: parent is 18+ and accepts terms + privacy (versions stored with the date) | same |
 | Plans: free pilot (60 days by code), monthly 39 ₪, yearly 349 ₪ (incl. VAT) | `server/lib/plans.mjs` |
 | Live talk only with an active plan AND the parent's live-talk switch (off by default; switching it ON needs the password) | `mikaSession()` |
@@ -19,7 +21,7 @@ and a free pilot; until then families get in with free pilot codes.
 | Admin CLI on a local-only port: pilot codes, accounts, grant, password reset | `server/admin.mjs` |
 | Draft terms (cancellation rules) and privacy notice, marked for lawyer review | `account/terms.html`, `account/privacy.html` |
 
-Data kept: parent email, password hash, consent dates, subscription, per-call minutes. Nothing about the child.
+Data kept: parent phone number (Israeli mobile), password hash, consent dates, subscription, per-call minutes. Nothing about the child.
 Card details never reach our server (hosted payment page).
 
 Subscription states: `pilot` → `active` → (`past_due`, 3-day grace) → `canceled` (access to the end of the paid period).
@@ -60,3 +62,9 @@ against the provider's sandbox; the rest of the system does not change.
 `npm run test:api` : 13 tests (sign-up rules, login + brute-force lockout, CSRF, live-talk gating and caps,
 reconciliation, billing closed by default, mock checkout → pay → cancel, signed/idempotent webhooks with grace period,
 account deletion, password change + admin reset, legacy fallback, retention, signup limiter).
+
+## SMS provider (needed before real families sign in)
+`SMS_PROVIDER=mock` sends nothing; for the pilot, the operator can still sign families in only once a real gateway is set.
+Recommended: an Israeli SMS gateway with an HTTP API and a registered sender name (e.g. InforU or 019 SMS);
+priced per message in agorot, get a quote first. Adding it = one entry in `server/lib/sms.mjs` (`send(phone, text)`).
+Opening the account is the owner's step; nothing is paid without the owner's written OK.

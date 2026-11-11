@@ -2,7 +2,7 @@
 // Listens on 127.0.0.1 only; Caddy proxies /api/* and /preview/api/* here. A second port (ADMIN_PORT)
 // serves the admin commands to server/admin.mjs and is never proxied.
 // Keys never leave this process. No audio, transcripts or children's data are handled or stored:
-// an account is a parent's email, a password hash, consent dates and the subscription.
+// an account is a parent's phone number (or email + password hash), consent dates and the subscription.
 import http from 'node:http';
 import { appendFileSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -11,18 +11,23 @@ import { openStore } from './lib/store.mjs';
 import { PLANS, LIVE, entitled, publicPlans, addDays } from './lib/plans.mjs';
 import { hashPassword, checkPassword, DUMMY_HASH, newToken, sha256, newId, limiter, validEmail, validPassword } from './lib/auth.mjs';
 import { getProvider } from './lib/billing.mjs';
+import { getSms, normalizePhone, maskPhone, codeBook } from './lib/sms.mjs';
 
 // Versions of the documents a parent agrees to at sign-up. Bump when the text changes.
 export const TERMS_VERSION = '2026-11-draft';
 export const PRIVACY_VERSION = '2026-11-draft';
 
-const SESSION_DAYS = 30;
+const SESSION_DAYS = 365;   // parents stay signed in on their own device; password change or logout ends it
 const COOKIE = 'yk_sid';
 const MAX_BODY = 16 * 1024;
 
 const ilDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit' });
 export const ilDay = (d = new Date()) => ilDate.format(d);               // YYYY-MM-DD, Israel time
 export const ilMonth = (d = new Date()) => ilDay(d).slice(0, 7);         // YYYY-MM
+
+// Optional support module (server/lib/support.mjs, owned by the support thread). Absent = no support routes.
+let supportMod = null;
+try { supportMod = await import('./lib/support.mjs'); } catch (e) { if (!(e.code === 'ERR_MODULE_NOT_FOUND' && String(e.message).includes('support.mjs'))) throw e; }
 
 export function createApp(env = process.env) {
   const on = (k) => env[k] === '1';
@@ -47,6 +52,22 @@ export function createApp(env = process.env) {
 
   const { db, save, audit } = openStore(DIR);
   const provider = getProvider(env);
+  const sms = getSms(env);
+  const SMS_ECHO = env.SMS_DEV_ECHO === '1' && sms.name === 'mock';   // tests/dev only: return the code in the answer
+  const SMS_DAY_CAP = num('SMS_DAY_CAP', 200);                       // cost guard: SMS messages per day, all families
+  let smsDay = { d: '', n: 0 };
+  const codes = codeBook();
+
+  // Read-only account facts for other modules (support). Phone is masked; no child data exists to share.
+  function facts(aid) {
+    const a = db.accounts[aid]; if (!a) return null;
+    const u = usage(`a:${a.id}`), live = PLANS[a.sub?.plan]?.live || LIVE;
+    return { id: a.id, phone: maskPhone(a.phone), email: a.email || null, created: a.created, liveTalk: !!a.liveTalk,
+      plan: a.sub?.plan || null, status: a.sub?.status || null, periodEnd: a.sub?.periodEnd || null, entitled: entitled(a.sub),
+      usage: { todayMin: u.day, monthMin: u.month, dayCapMin: live.dayMin, monthCapMin: live.monthMin } };
+  }
+  const support = supportMod?.createSupport?.({ dir: DIR, env, audit, facts, listAccountIds: () => Object.keys(db.accounts) }) || null;
+  if (!db.byPhone) db.byPhone = {};
 
   // ---------- live-talk usage ----------
   let rec = {}; try { rec = JSON.parse(readFileSync(REC, 'utf8')); } catch {}
@@ -154,7 +175,7 @@ export function createApp(env = process.env) {
     const sub = acc.sub || null; const plan = sub && PLANS[sub.plan];
     const u = usage(`a:${acc.id}`); const live = plan?.live || LIVE;
     return {
-      email: acc.email, created: acc.created, liveTalk: !!acc.liveTalk,
+      phone: maskPhone(acc.phone), email: acc.email || null, created: acc.created, liveTalk: !!acc.liveTalk,
       subscription: sub && { plan: sub.plan, planName: plan?.name, status: sub.status, periodEnd: sub.periodEnd, cancelAtPeriodEnd: !!sub.cancelAtPeriodEnd },
       entitled: entitled(sub),
       liveTalkUsage: { todayMin: u.day, monthMin: u.month, dayCapMin: live.dayMin, monthCapMin: live.monthMin },
@@ -162,6 +183,7 @@ export function createApp(env = process.env) {
     };
   }
 
+  const smsPhone = limiter(3, 15 * 60e3), smsIp = limiter(10, 3600e3), verifyIp = limiter(30, 15 * 60e3);
   const loginIp = limiter(10, 15 * 60e3), loginEmail = limiter(5, 15 * 60e3), signupIp = limiter(5, 3600e3), redeemIp = limiter(10, 3600e3);
 
   // ---------- subscription state changes (one place, audited, idempotent) ----------
@@ -211,6 +233,47 @@ export function createApp(env = process.env) {
 
     if (M === 'POST' && path.startsWith('/api/') && !csrfOk(req)) return send(res, 403, { error: 'bad origin' });
 
+    // ---------- sign in with phone + SMS code (signs up a new parent on first use) ----------
+    async function sendCode(key, phone, ip) {
+      if (!smsIp(ip)) return { status: 429, body: { error: 'too_many', retryAfterSec: 3600 } };
+      const d = ilDay(); if (smsDay.d !== d) smsDay = { d, n: 0 };
+      if (smsDay.n >= SMS_DAY_CAP) { audit({ ev: 'sms_day_cap' }); return { status: 503, body: { error: 'sms_unavailable' } }; }
+      if (!smsPhone(phone)) return { status: 429, body: { error: 'too_many', retryAfterSec: 900 } };
+      const r = codes.issue(key);
+      if (r.wait) return { status: 429, body: { error: 'too_many', retryAfterSec: r.wait } };
+      try { await sms.send(phone, `קוד הכניסה ל-YALLA KIDS: ${r.code}\nאל תמסרו אותו לאף אחד.`); } catch { return { status: 502, body: { error: 'sms_unavailable' } }; }
+      smsDay.n++;
+      return { status: 200, body: { sent: true, resendInSec: 60, ...(SMS_ECHO && { devCode: r.code }) } };
+    }
+
+    if (path === '/api/auth/code' && M === 'POST') {
+      const phone = normalizePhone((await json(req)).phone);
+      if (!phone) return send(res, 400, { error: 'bad_phone' });
+      const r = await sendCode(`login:${phone}`, phone, ipOf(req));
+      return send(res, r.status, r.body);
+    }
+
+    if (path === '/api/auth/verify' && M === 'POST') {
+      if (!verifyIp(ipOf(req))) return send(res, 429, { error: 'too_many' });
+      const b = await json(req); const phone = normalizePhone(b.phone);
+      if (!phone) return send(res, 400, { error: 'bad_phone' });
+      let acc = db.accounts[db.byPhone[phone]];
+      const isNew = !acc; const consented = b.acceptTerms === true && b.parentAdult === true;
+      // A new parent must accept first; the code stays valid while they tick the boxes.
+      const c = codes.check(`login:${phone}`, b.code, !isNew || consented);
+      if (c === 'expired') return send(res, 410, { error: 'code_expired' });
+      if (c === 'bad') { audit({ ev: 'code_failed', ip: ipOf(req) }); return send(res, 401, { error: 'bad_code' }); }
+      if (isNew) {
+        if (!consented) return send(res, 400, { error: 'consent_required' });
+        if (!SIGNUP_ON) return send(res, 403, { error: 'signup_closed' });
+        const now = new Date().toISOString();
+        acc = { id: newId('acc'), phone, created: now, liveTalk: false,
+          consent: { terms: TERMS_VERSION, privacy: PRIVACY_VERSION, parentAdult: true, at: now }, sub: null };
+        db.accounts[acc.id] = acc; db.byPhone[phone] = acc.id; audit({ ev: 'signup', aid: acc.id, via: 'phone' });
+      }
+      return send(res, isNew ? 201 : 200, view(acc), { 'set-cookie': startSession(res, acc) });
+    }
+
     if (path === '/api/account/signup' && M === 'POST') {
       if (!SIGNUP_ON) return send(res, 403, { error: 'signup_closed' });
       const b = await json(req); const email = String(b.email || '').trim().toLowerCase();
@@ -241,6 +304,9 @@ export function createApp(env = process.env) {
     }
 
     // Everything below needs a signed-in parent.
+    // Support hook: the module gets the signed-in parent (or null) and read-only facts, never child data.
+    if (path.startsWith('/api/support/') && support) return support.route(req, res, path, accountOf(req) && facts(accountOf(req).id), { send, json, ipOf });
+
     if (!path.startsWith('/api/account/') && !path.startsWith('/api/billing/') && !path.startsWith('/api/pilot/')) return send(res, 404, { error: 'not found' });
     if (path === '/api/billing/mock/pay' && M === 'GET' && provider.name === 'mock') return mockPay(req, res, url);
     const acc = accountOf(req);
@@ -248,13 +314,24 @@ export function createApp(env = process.env) {
 
     if (path === '/api/account/me' && M === 'GET') return send(res, 200, view(acc));
 
+    // Step-up for sensitive actions: a fresh SMS code to the account's phone (or the password, for email accounts).
+    if (path === '/api/account/confirm-code' && M === 'POST') {
+      if (!acc.phone) return send(res, 400, { error: 'no_phone' });
+      const r = await sendCode(`confirm:${acc.id}`, acc.phone, ipOf(req));
+      return send(res, r.status, r.body);
+    }
+    const stepUp = (b) => {
+      if (acc.phone && b.code !== undefined) { const c = codes.check(`confirm:${acc.id}`, b.code); return c === 'ok' ? null : c === 'expired' ? [410, 'code_expired'] : [401, 'bad_code']; }
+      if (!loginEmail(acc.email || acc.id)) return [429, 'too_many'];
+      return acc.pw && checkPassword(String(b.password || ''), acc.pw) ? null : [401, acc.phone ? 'bad_code' : 'bad_login'];
+    };
+
     if (path === '/api/account/live-talk' && M === 'POST') {
       const b = await json(req);
       // Turning live talk ON is a consent step: it needs the parent's password, so a child holding a signed-in tablet can't.
       if (b.enabled === true) {
         if (!entitled(acc.sub)) return send(res, 409, { error: 'no_plan' });
-        if (!loginEmail(acc.email)) return send(res, 429, { error: 'too_many' });
-        if (!checkPassword(String(b.password || ''), acc.pw)) return send(res, 401, { error: 'bad_login' });
+        const e = stepUp(b); if (e) return send(res, e[0], { error: e[1] });
       }
       acc.liveTalk = b.enabled === true;
       acc.consent.liveTalkAt = acc.liveTalk ? new Date().toISOString() : null; save(); audit({ ev: 'live_talk_consent', aid: acc.id, on: acc.liveTalk });
@@ -262,7 +339,7 @@ export function createApp(env = process.env) {
     }
 
     if (path === '/api/account/password' && M === 'POST') {
-      const b = await json(req);
+      const b = await json(req); if (!acc.pw) return send(res, 400, { error: 'no_password' });
       if (!loginEmail(acc.email)) return send(res, 429, { error: 'too_many' });
       if (!checkPassword(String(b.oldPassword || ''), acc.pw)) return send(res, 401, { error: 'bad_login' });
       if (!validPassword(b.newPassword)) return send(res, 400, { error: 'weak_password' });
@@ -274,9 +351,9 @@ export function createApp(env = process.env) {
 
     if (path === '/api/account/delete' && M === 'POST') {
       const b = await json(req);
-      if (!checkPassword(String(b.password || ''), acc.pw)) return send(res, 401, { error: 'bad_login' });
+      const e = stepUp(b); if (e) return send(res, e[0], { error: e[1] });
       if (acc.sub?.providerRef && acc.sub.status !== 'canceled') { try { await provider.cancel(acc.sub); } catch { return send(res, 502, { error: 'cancel_failed' }); } }
-      delete db.byEmail[acc.email]; delete db.accounts[acc.id];
+      if (acc.email) delete db.byEmail[acc.email]; if (acc.phone) delete db.byPhone[acc.phone]; delete db.accounts[acc.id];
       for (const [k, v] of Object.entries(db.sessions)) if (v.aid === acc.id) delete db.sessions[k];
       for (const [k, v] of Object.entries(db.checkouts)) if (v.aid === acc.id) delete db.checkouts[k];
       save(); audit({ ev: 'account_deleted', aid: acc.id });
@@ -306,7 +383,7 @@ export function createApp(env = process.env) {
       save();
       try {
         const base = env.PUBLIC_URL || '';
-        const { url: payUrl } = await provider.createCheckout({ ref, plan, email: acc.email, returnUrl: `${base}/account/?paid=1`, notifyUrl: `${base}/api/billing/webhook/${provider.name}` });
+        const { url: payUrl } = await provider.createCheckout({ ref, plan, email: acc.email, phone: acc.phone, returnUrl: `${base}/account/?paid=1`, notifyUrl: `${base}/api/billing/webhook/${provider.name}` });
         audit({ ev: 'checkout_started', aid: acc.id, plan: plan.id });
         return send(res, 200, { url: payUrl });
       } catch { return send(res, 502, { error: 'provider_unavailable' }); }
@@ -371,8 +448,9 @@ export function createApp(env = process.env) {
   async function admin(req, res) {
     const tok = env.ADMIN_TOKEN;
     if (!tok || req.headers.authorization !== `Bearer ${tok}`) return send(res, 401, { error: 'unauthorized' });
+    if (new URL(req.url, 'http://x').pathname.startsWith('/support/') && support) return support.admin(req, res, new URL(req.url, 'http://x').pathname, { send, json });
     const path = new URL(req.url, 'http://x').pathname; const b = req.method === 'POST' ? await json(req) : {};
-    const find = (email) => db.accounts[db.byEmail[String(email || '').toLowerCase()]];
+    const find = (who) => db.accounts[db.byEmail[String(who || '').toLowerCase()] || db.byPhone[normalizePhone(who)]];
     if (path === '/pilot-codes') {
       const n = Math.min(+b.count || 1, 200), days = +b.days || PLANS.pilot.days, codes = [];
       const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -382,9 +460,9 @@ export function createApp(env = process.env) {
       }
       save(); audit({ ev: 'admin_pilot_codes', n, days }); return send(res, 200, { codes, days });
     }
-    if (path === '/accounts') return send(res, 200, { accounts: Object.values(db.accounts).map((a) => ({ email: a.email, created: a.created, liveTalk: a.liveTalk, sub: a.sub, entitled: entitled(a.sub), usage: usage(`a:${a.id}`) })) });
+    if (path === '/accounts') return send(res, 200, { accounts: Object.values(db.accounts).map((a) => ({ phone: a.phone, email: a.email, created: a.created, liveTalk: a.liveTalk, sub: a.sub, entitled: entitled(a.sub), usage: usage(`a:${a.id}`) })) });
     if (path === '/grant') {
-      const a = find(b.email); const plan = PLANS[b.plan]; if (!a || !plan) return send(res, 404, { error: 'no such account or plan' });
+      const a = find(b.email || b.phone); const plan = PLANS[b.plan]; if (!a || !plan) return send(res, 404, { error: 'no such account or plan' });
       a.sub = { plan: plan.id, status: plan.id === 'pilot' ? 'pilot' : 'active', periodEnd: addDays(null, +b.days || plan.days), cancelAtPeriodEnd: false, provider: 'manual' };
       save(); audit({ ev: 'admin_grant', aid: a.id, plan: plan.id }); return send(res, 200, { ok: true, sub: a.sub });
     }

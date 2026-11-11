@@ -25,7 +25,7 @@ after(() => eleven.close());
 async function boot(extra = {}) {
   const dir = mkdtempSync(`${tmpdir()}/yk-`);
   const env = { DATA_DIR: dir, ELEVENLABS_AGENT_KEY: 'k', MIKA_AGENT_ID: 'agent', ELEVEN_API: elevenUrl, LIVE_TALK_ENABLED: '1',
-    COOKIE_INSECURE: '1', ADMIN_TOKEN: 'adm', BILLING_WEBHOOK_SECRET: 'whsec', ...extra };
+    COOKIE_INSECURE: '1', ADMIN_TOKEN: 'adm', SMS_DEV_ECHO: '1', BILLING_WEBHOOK_SECRET: 'whsec', ...extra };
   const app = createApp(env);
   const base = await listen(app.server), adminBase = await listen(app.adminServer);
   let cookie = '';
@@ -236,5 +236,41 @@ test('signup limit counts only complete forms and uses the address Caddy appende
   for (let i = 0; i < 8; i++) await s.req('POST', '/api/account/signup', { ...SIGNUP, password: 'x' }, { 'x-forwarded-for': '9.9.9.9' });
   for (let i = 0; i < 5; i++) assert.equal((await s.req('POST', '/api/account/signup', { ...SIGNUP, email: `p${i}@example.com` }, { 'x-forwarded-for': `${i}.1.1.1, 9.9.9.9` })).status, 201);
   assert.equal((await s.req('POST', '/api/account/signup', { ...SIGNUP, email: 'p9@example.com' }, { 'x-forwarded-for': '7.7.7.7, 9.9.9.9' })).body.error, 'too_many_signups');
+  s.stop();
+});
+
+test('phone sign-in: SMS code, consent for new parents, step-up code for live talk and delete', async () => {
+  const s = await boot();
+  assert.equal((await s.req('POST', '/api/auth/code', { phone: '03-1234567' })).body.error, 'bad_phone');
+  const c1 = await s.req('POST', '/api/auth/code', { phone: '050-123 4567' });
+  assert.equal(c1.status, 200); assert.match(c1.body.devCode, /^\d{6}$/);
+  assert.equal((await s.req('POST', '/api/auth/code', { phone: '+972501234567' })).body.error, 'too_many', 'resend waits 60 s');
+  const wrong = c1.body.devCode === '000000' ? '111111' : '000000';
+  assert.equal((await s.req('POST', '/api/auth/verify', { phone: '0501234567', code: wrong })).body.error, 'bad_code');
+  assert.equal((await s.req('POST', '/api/auth/verify', { phone: '0501234567', code: c1.body.devCode })).body.error, 'consent_required');
+  const v = await s.req('POST', '/api/auth/verify', { phone: '0501234567', code: c1.body.devCode, acceptTerms: true, parentAdult: true });
+  assert.equal(v.status, 201); assert.equal(v.body.phone, '050-***-4567');
+  assert.equal((await s.req('POST', '/api/auth/verify', { phone: '0501234567', code: c1.body.devCode, acceptTerms: true, parentAdult: true })).body.error, 'code_expired', 'a code works once');
+  await s.adm('/grant', { phone: '0501234567', plan: 'pilot' });
+  assert.equal((await s.req('POST', '/api/account/live-talk', { enabled: true, code: '123456' })).body.error, 'code_expired', 'no code was sent yet');
+  const cc = await s.req('POST', '/api/account/confirm-code', {});
+  assert.equal((await s.req('POST', '/api/account/live-talk', { enabled: true, code: cc.body.devCode === '000000' ? '111111' : '000000' })).body.error, 'bad_code');
+  assert.equal((await s.req('POST', '/api/account/live-talk', { enabled: true, code: cc.body.devCode })).body.liveTalk, true);
+  s.stop();
+  // Five wrong codes burn the code.
+  const t = await boot();
+  const k = await t.req('POST', '/api/auth/code', { phone: '0529999999' });
+  const bad = k.body.devCode === '000000' ? '111111' : '000000';
+  for (let i = 0; i < 5; i++) await t.req('POST', '/api/auth/verify', { phone: '0529999999', code: bad });
+  assert.equal((await t.req('POST', '/api/auth/verify', { phone: '0529999999', code: k.body.devCode })).body.error, 'code_expired');
+  t.stop();
+});
+
+test('phone account: stored in E.164; admin finds it by phone', async () => {
+  const s = await boot();
+  const signIn = async (extra = {}) => { const c = await s.req('POST', '/api/auth/code', { phone: '0541112222' }); return s.req('POST', '/api/auth/verify', { phone: '0541112222', code: c.body.devCode, ...extra }); };
+  assert.equal((await signIn({ acceptTerms: true, parentAdult: true })).status, 201);
+  await s.req('POST', '/api/account/logout', {});
+  const acc = (await s.adm('/accounts')).accounts[0]; assert.equal(acc.phone, '+972541112222');
   s.stop();
 });
