@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>YALLA KIDS · מרכז העזרה</title>
+<meta name="theme-color" content="#140B3A">
+<link rel="preload" href="../account/fonts/Fredoka-hebrew.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="help.css">
+<script type="module" src="help.js"></script>
+</head>
+<body>
+<div class="sky" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<!-- 1. Parent gate: the same sum-in-words gate as the parents' area (shared lock, shared 15 minute pass) -->
+<section id="gate" class="gate" hidden>
+  <p class="brand" dir="ltr" aria-hidden="true">YALLA <b>KIDS</b></p>
+  <div class="gate-card glass">
+    <span class="chip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>להורים בלבד</span>
+    <h1>מרכז העזרה</h1>
+    <p class="soft">כדי להמשיך, מבוגר צריך לפתור את התרגיל.</p>
+    <p class="question" id="gate-q"></p>
+    <output id="gate-input" class="pin" aria-label="התשובה"></output>
+    <div class="pad" id="gate-pad" role="group" aria-label="מקלדת מספרים"></div>
+    <p class="gate-msg" id="gate-msg" role="alert"></p>
+  </div>
+</section>
+
+<div id="shell" hidden>
+  <header class="bar">
+    <a class="brand" href="#" dir="ltr" aria-label="YALLA KIDS, מרכז העזרה">YALLA <b>KIDS</b></a>
+    <nav class="tabs" aria-label="מרכז העזרה">
+      <a href="#" data-tab="home">עזרה</a>
+      <a href="#tickets" data-tab="tickets">הפניות שלי<span class="dot" id="nav-unread" hidden></span></a>
+      <a href="#new" data-tab="new">פנייה חדשה</a>
+    </nav>
+    <a class="back" id="to-account" href="../account/"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>אזור ההורים</a>
+  </header>
+
+  <main id="app">
+
+    <!-- 2. Home: hero, check-up entry, status, FAQ -->
+    <section id="v-home" class="view" hidden>
+      <div class="hero">
+        <div class="hero-text">
+          <a class="status-pill" id="status-pill" href="#status"><span class="pulse"></span><span id="status-pill-t">בודקים את המערכות</span></a>
+          <h1>איך אפשר <br>לעזור?</h1>
+          <p class="lead">תשובות קצרות, בדיקה מהירה למכשיר, וצוות שעונה בעברית.</p>
+          <label class="search">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+            <input id="faq-q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="חפשו: קול, מיקרופון, ביטול, התקנה" aria-label="חיפוש בשאלות ותשובות">
+          </label>
+        </div>
+        <a class="checkup-card glass" href="#checkup" id="checkup-entry">
+          <div class="dial idle" id="dial-idle" aria-hidden="true"></div>
+          <div class="checkup-copy">
+            <span class="eyebrow">בדיקה מהירה · 10 שניות</span>
+            <strong>משהו לא עובד?</strong>
+            <span class="soft">נבדוק את המכשיר, הקול, המיקרופון והחיבור, ונציע תיקון בלחיצה.</span>
+            <span class="btn primary" role="presentation">להתחיל בדיקה</span>
+          </div>
+        </a>
+      </div>
+
+      <section class="faq" id="faq" aria-labelledby="faq-h">
+        <div class="section-head">
+          <h2 id="faq-h">שאלות ותשובות</h2>
+          <p class="soft" id="faq-count" role="status"></p>
+        </div>
+        <div class="chips" id="faq-cats" role="group" aria-label="סינון לפי נושא"></div>
+        <div id="faq-list"></div>
+        <div class="empty glass" id="faq-empty" hidden>
+          <strong>לא מצאנו תשובה לזה.</strong>
+          <p class="soft">אפשר לנסות מילה אחרת, או לכתוב לנו ונחזור אליכם.</p>
+          <a class="btn primary" href="#new">לפתוח פנייה</a>
+        </div>
+      </section>
+
+      <section class="status glass" id="status" aria-labelledby="status-h">
+        <div class="status-head">
+          <span class="status-orb" id="status-orb"></span>
+          <div>
+            <h2 id="status-h">בודקים את המערכות</h2>
+            <p class="soft" id="status-sub">רגע אחד</p>
+          </div>
+        </div>
+        <ul class="services" id="services"></ul>
+        <ul class="incidents" id="incidents" hidden></ul>
+      </section>
+
+      <div class="cta glass">
+        <div><strong>לא מצאתם את מה שחיפשתם?</strong><p class="soft">כתבו לנו. עונים בדרך כלל באותו יום.</p></div>
+        <a class="btn ghost" href="#new">לכתוב לצוות</a>
+      </div>
+    </section>
+
+    <!-- 3. Check-up: the live device diagnostic -->
+    <section id="v-checkup" class="view" hidden>
+      <a class="crumb" href="#"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>חזרה לעזרה</a>
+      <div class="scan glass">
+        <div class="scan-dial">
+          <div class="dial" id="dial"></div>
+          <p class="scan-note soft small">בדיקה טכנית בלבד. שום מידע על הילד.</p>
+        </div>
+        <div class="scan-body">
+          <span class="eyebrow">בדיקת מכשיר</span>
+          <h1 id="scan-title" tabindex="-1">בודקים את המכשיר</h1>
+          <p class="soft" id="scan-sub" role="status">זה לוקח כמה שניות.</p>
+          <button class="btn primary" type="button" id="scan-start" hidden>להתחיל בדיקה</button>
+          <ol class="checks" id="checks"></ol>
+        </div>
+      </div>
+      <div id="scan-result" hidden>
+        <div class="section-head"><h2 id="fix-h">מה אפשר לעשות עכשיו</h2></div>
+        <div class="hints" id="hints"></div>
+        <div class="toolbox glass">
+          <div><strong>ארגז כלים</strong><p class="soft small">תיקונים בטוחים שאפשר לנסות בכל רגע.</p></div>
+          <div class="tools" id="tools"></div>
+          <p class="tool-msg" id="tool-msg" role="status"></p>
+        </div>
+        <div class="scan-actions">
+          <button class="btn ghost" type="button" id="scan-again">לבדוק שוב</button>
+          <button class="btn primary" type="button" id="scan-ticket">עדיין לא עובד? לפתוח פנייה</button>
+        </div>
+        <p class="soft small center" id="scan-id"></p>
+      </div>
+    </section>
+
+    <!-- 4. My tickets -->
+    <section id="v-tickets" class="view" hidden>
+      <div class="section-head">
+        <div><span class="eyebrow">הפניות שלי</span><h1>השיחות שלכם עם הצוות</h1></div>
+        <a class="btn primary" href="#new">פנייה חדשה</a>
+      </div>
+      <div id="tickets"></div>
+    </section>
+
+    <!-- 5. One ticket as a conversation -->
+    <section id="v-thread" class="view" hidden>
+      <a class="crumb" href="#tickets"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>כל הפניות</a>
+      <div class="thread glass">
+        <header class="thread-head" id="thread-head"></header>
+        <div class="msgs" id="msgs" aria-live="polite"></div>
+        <div class="rate" id="rate" hidden></div>
+        <form class="reply" id="f-reply" novalidate>
+          <textarea name="text" rows="2" maxlength="2000" placeholder="כתבו תשובה" aria-label="תשובה לצוות"></textarea>
+          <div class="reply-row">
+            <button class="btn quiet" type="button" id="solve">הבעיה נפתרה</button>
+            <button class="btn primary" type="submit">שליחה</button>
+          </div>
+          <p class="form-msg" id="reply-msg" role="alert"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- 6. New ticket -->
+    <section id="v-new" class="view" hidden>
+      <a class="crumb" href="#"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>חזרה לעזרה</a>
+      <form class="compose glass" id="f-new" novalidate>
+        <span class="eyebrow">פנייה חדשה</span>
+        <h1>ספרו לנו מה קרה</h1>
+        <p class="soft">אדם אמיתי מהצוות קורא כל פנייה. עונים בדרך כלל באותו יום.</p>
+        <fieldset>
+          <legend>על מה הפנייה?</legend>
+          <div class="chips big" id="topics"></div>
+        </fieldset>
+        <label class="field" for="new-text">מה קרה?</label>
+        <textarea id="new-text" name="text" rows="6" maxlength="2000" placeholder="למשל: מאתמול אין קול במשחק החיות, באייפד." required></textarea>
+        <p class="gentle"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.2-2.9 7.6-7 9-4.1-1.400-7-4.800-7-9V6z"/><path d="M9 12l2.200 2.200L15.200 10"/></svg>בבקשה לא לכתוב את שם הילד או פרטים מזהים. אין בהם צורך כדי לעזור.</p>
+        <div class="attach" id="attach" hidden></div>
+        <div class="compose-row">
+          <p class="form-msg" id="new-msg" role="alert"></p>
+          <button class="btn primary" type="submit">שליחת הפנייה</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Shown inside the ticket views when no parent is signed in -->
+    <template id="tpl-signin">
+      <div class="signin glass">
+        <svg class="ico big" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>
+        <strong>כדי לכתוב לצוות צריך להיכנס לחשבון</strong>
+        <p class="soft">כך נדע למי לענות, וההיסטוריה שלכם נשמרת במקום אחד.</p>
+        <a class="btn primary" data-account>כניסה לאזור ההורים</a>
+      </div>
+    </template>
+  </main>
+
+  <footer class="foot soft small">
+    <span dir="ltr">YALLA KIDS</span> · <a id="f-privacy" href="../account/privacy.html">פרטיות</a> · <a id="f-terms" href="../account/terms.html">תנאי שימוש</a>
+  </footer>
+</div>
+</body>
+</html>

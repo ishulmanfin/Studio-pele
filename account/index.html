@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>YALLA KIDS · אזור ההורים</title>
+<meta name="theme-color" content="#1B0F4A">
+<link rel="preload" href="fonts/Fredoka-hebrew.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="account.css">
+<script src="vendor/qrcode.js" defer></script>
+<script type="module" src="account.js"></script>
+</head>
+<body>
+<main id="app" aria-live="polite">
+
+  <!-- 1. Parent gate: stops a young child before anything else -->
+  <section id="gate" class="stage" hidden>
+    <aside class="hero">
+      <p class="brand" dir="ltr" aria-hidden="true">YALLA <b>KIDS</b></p>
+      <figure class="maya"><img src="img/maya.webp" alt="מאיה, המורה של YALLA KIDS" width="510" height="612"><figcaption>מאיה · מורה ממוחשבת (AI)</figcaption></figure>
+      <p class="hero-line">שלום הורים, נעים מאוד.</p>
+      <p class="hero-sub">כאן מנהלים את המנוי, את הפרטיות ואת השיחה החיה עם מאיה.</p>
+    </aside>
+    <div class="card panel">
+    <span class="badge"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>להורים בלבד</span>
+    <h1>אזור ההורים</h1>
+    <p class="muted">כדי להמשיך, מבוגר צריך לפתור את התרגיל.</p>
+    <p class="question" id="gate-q"></p>
+    <output id="gate-input" class="pin" aria-label="התשובה"></output>
+    <div class="pad" id="gate-pad" role="group" aria-label="מקלדת מספרים"></div>
+    <p class="error" id="gate-msg" role="alert"></p>
+    </div>
+  </section>
+
+  <!-- 2. Sign in / sign up -->
+  <section id="auth" class="stage" hidden>
+    <aside class="hero">
+      <p class="brand" dir="ltr" aria-hidden="true">YALLA <b>KIDS</b></p>
+      <figure class="maya"><img src="img/maya.webp" alt="מאיה, המורה של YALLA KIDS" width="510" height="612"><figcaption>מאיה · מורה ממוחשבת (AI)</figcaption></figure>
+      <p class="hero-line">חשבון אחד לכל המשפחה.</p>
+      <ul class="trust">
+        <li>בלי סיסמאות: נכנסים עם וואטסאפ או קוד ב-SMS</li>
+        <li>שום מידע על הילד לא נשמר אצלנו</li>
+        <li>שיחה חיה רק באישור ההורה</li>
+      </ul>
+    </aside>
+    <div class="card panel">
+    <h1>החשבון של המשפחה</h1>
+    <p class="muted lead">בלי סיסמאות ובלי טפסים.</p>
+    <div class="wa" id="wa-login" hidden>
+      <div class="wa-live" hidden>
+        <div class="wa-main">
+          <a class="wa-btn" target="_blank" rel="noopener"><svg class="wa-ico" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3.2A12.7 12.7 0 0 0 5.1 22.5L3.4 28.7l6.4-1.7A12.7 12.7 0 1 0 16 3.2Z" fill="#fff"/><path d="M16 5.5a10.4 10.4 0 0 0-8.7 16.1l.3.5-1 3.5 3.6-1 .5.3A10.4 10.4 0 1 0 16 5.5Zm-4 5.3c.3 0 .6 0 .8.5l1 2.4c.1.3.1.5-.1.8l-.7.9c-.2.2-.2.4 0 .7a8 8 0 0 0 3.800 3.300c.3.2.6.1.8-.1l.9-1.100c.2-.3.5-.3.8-.2l2.300 1.100c.3.2.5.3.5.6 0 .9-.6 2-1.800 2.300-1.900.5-4.900-.6-7.300-2.900-2.300-2.300-3.600-5.100-3.200-7 .2-.8.8-1.300 1.400-1.300Z" fill="#128C4B"/></svg><span>כניסה עם וואטסאפ</span></a>
+          <p class="wa-hint">וואטסאפ ייפתח עם הודעה מוכנה, רק לוחצים שלח.</p>
+        </div>
+        <div class="wa-scan"><div class="wa-qr" role="img" aria-label="קוד QR שפותח את וואטסאפ בטלפון"></div><p><b>במחשב או בטאבלט?</b> סרקו עם מצלמת הטלפון.</p></div>
+        <p class="wa-wait" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="wa-wait-t">הדף יתעדכן לבד אחרי השליחה.</span></p>
+      </div>
+      <form class="consent-form" id="f-wa-consent" novalidate hidden>
+        <div class="consent">
+          <p class="consent-t">ההודעה התקבלה. פעם ראשונה כאן? רק שני אישורים קצרים:</p>
+          <label class="check"><input type="checkbox" name="parentAdult"><span>אני ההורה או האפוטרופוס של הילד, ואני בגיר (בן 18 ומעלה).</span></label>
+          <label class="check"><input type="checkbox" name="acceptTerms"><span>קראתי ואני מסכים/ה ל<a href="terms.html" target="_blank" rel="noopener">תנאי השימוש והמנוי</a> ול<a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a>.</span></label>
+        </div>
+        <button class="primary wide-btn" type="submit">כניסה</button>
+      </form>
+      <div class="wa-expired" hidden><p>פג תוקף, נסו שוב.</p><button class="ghost wa-restart" type="button">קוד חדש</button></div>
+      <p class="error wa-msg" role="alert"></p>
+    </div>
+    <button class="link alt" type="button" id="to-sms" hidden>או קבלו קוד ב-SMS</button>
+    <form id="f-phone" novalidate>
+      <label>הטלפון הנייד של ההורה<input class="big" name="phone" type="tel" inputmode="numeric" autocomplete="tel" dir="ltr" placeholder="050-1234567" maxlength="16" required></label>
+      <button class="primary wide-btn" type="submit" id="auth-submit">שלחו לי קוד</button>
+      <p class="error" id="auth-msg" role="alert"></p>
+      <button class="link alt" type="button" id="to-wa" data-wa hidden>חזרה לכניסה עם וואטסאפ</button>
+    </form>
+    <form id="f-code" novalidate hidden>
+      <p class="sent">שלחנו קוד בן 6 ספרות אל <bdi id="code-to" dir="ltr"></bdi></p>
+      <label>הקוד מה-SMS<input class="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" dir="ltr" placeholder="••••••" required></label>
+      <div class="consent" id="consent" hidden>
+        <p class="consent-t">פעם ראשונה כאן? רק שני אישורים קצרים:</p>
+        <label class="check"><input type="checkbox" name="parentAdult"><span>אני ההורה או האפוטרופוס של הילד, ואני בגיר (בן 18 ומעלה).</span></label>
+        <label class="check"><input type="checkbox" name="acceptTerms"><span>קראתי ואני מסכים/ה ל<a href="terms.html" target="_blank" rel="noopener">תנאי השימוש והמנוי</a> ול<a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a>.</span></label>
+      </div>
+      <button class="primary wide-btn" type="submit" id="code-submit">כניסה</button>
+      <p class="error" id="code-msg" role="alert"></p>
+      <div class="links">
+        <button class="link" type="button" id="resend">שליחה מחדש</button>
+        <button class="link" type="button" id="other-phone">מספר אחר</button>
+      </div>
+    </form>
+    <p class="stay">נשארים מחוברים במכשיר הזה.</p>
+    <p class="muted small fine">אנחנו שומרים רק את מספר הטלפון ומצב המנוי. שום מידע על הילד לא נשמר אצלנו.</p>
+    </div>
+  </section>
+
+  <!-- 3. Dashboard -->
+  <section id="dash" hidden>
+    <header class="top">
+      <img class="avatar" src="img/maya.webp" alt="" width="510" height="612">
+      <div class="top-t"><p class="brand" dir="ltr" aria-hidden="true">YALLA <b>KIDS</b></p><h1>אזור ההורים</h1></div>
+      <span class="who" id="who" dir="ltr"></span>
+    </header>
+    <p class="notice" id="notice" role="status" hidden></p>
+
+    <article class="card sub">
+      <h2>המנוי</h2>
+      <p class="status" id="sub-status"></p>
+      <p class="muted" id="sub-detail"></p>
+      <div id="cancel-box" hidden>
+        <button class="link danger" id="cancel-open">ביטול המנוי</button>
+        <div id="cancel-confirm" class="confirm" hidden>
+          <p>לבטל? לא נחייב אתכם יותר. הגישה נשארת עד <b id="cancel-until"></b>.</p>
+          <button class="danger" id="cancel-yes">כן, לבטל</button>
+          <button class="ghost" id="cancel-no">לא, להשאיר</button>
+        </div>
+      </div>
+    </article>
+
+    <article class="card live">
+      <h2>שיחה חיה עם מאיה</h2>
+      <div class="meter"><span>היום</span><progress id="use-day" max="3" value="0"></progress><b id="use-day-t"></b></div>
+      <div class="meter"><span>החודש</span><progress id="use-month" max="30" value="0"></progress><b id="use-month-t"></b></div>
+      <label class="switch">
+        <input type="checkbox" id="live-toggle" role="switch">
+        <span>אני מאשר/ת שיחה חיה עם מאיה</span>
+      </label>
+      <div class="stepup" id="live-wa-box" hidden>
+      <p class="sent">לאישור, שלחו לנו הודעה מהוואטסאפ של ההורה.</p>
+      <div class="wa" id="wa-live">
+      <div class="wa-live" hidden>
+        <div class="wa-main">
+          <a class="wa-btn" target="_blank" rel="noopener"><svg class="wa-ico" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3.2A12.7 12.7 0 0 0 5.1 22.5L3.4 28.7l6.4-1.7A12.7 12.7 0 1 0 16 3.2Z" fill="#fff"/><path d="M16 5.5a10.4 10.4 0 0 0-8.7 16.1l.3.5-1 3.5 3.6-1 .5.3A10.4 10.4 0 1 0 16 5.5Zm-4 5.3c.3 0 .6 0 .8.5l1 2.4c.1.3.1.5-.1.8l-.7.9c-.2.2-.2.4 0 .7a8 8 0 0 0 3.800 3.300c.3.2.6.1.8-.1l.9-1.100c.2-.3.5-.3.8-.2l2.300 1.100c.3.2.5.3.5.6 0 .9-.6 2-1.800 2.300-1.900.5-4.900-.6-7.300-2.900-2.300-2.300-3.600-5.100-3.200-7 .2-.8.8-1.300 1.400-1.300Z" fill="#128C4B"/></svg><span>אישור בוואטסאפ</span></a>
+          <p class="wa-hint">וואטסאפ ייפתח עם הודעה מוכנה, רק לוחצים שלח.</p>
+        </div>
+        <div class="wa-scan"><div class="wa-qr" role="img" aria-label="קוד QR שפותח את וואטסאפ בטלפון"></div><p><b>במחשב או בטאבלט?</b> סרקו עם מצלמת הטלפון.</p></div>
+        <p class="wa-wait" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="wa-wait-t">הדף יתעדכן לבד אחרי השליחה.</span></p>
+      </div>
+      <div class="wa-expired" hidden><p>פג תוקף, נסו שוב.</p><button class="ghost wa-restart" type="button">קוד חדש</button></div>
+      <p class="error wa-msg" role="alert"></p>
+    </div>
+      <div class="links"><button class="link" type="button" id="live-wa-sms">או קוד ב-SMS</button><button class="link" type="button" id="live-wa-cancel">ביטול</button></div>
+      </div>
+      <form id="f-live" class="stepup" novalidate hidden>
+        <p class="sent">לאישור, שלחנו קוד אל <bdi class="my-phone" dir="ltr"></bdi></p>
+        <div class="row">
+          <input class="code sm" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" dir="ltr" placeholder="••••••" aria-label="קוד מה-SMS לאישור שיחה חיה" required>
+          <button class="primary" type="submit">אישור</button>
+          <button class="ghost" type="button" id="live-cancel">ביטול</button>
+        </div>
+        <button class="link" type="button" id="live-resend">שליחה מחדש</button>
+      </form>
+      <p class="error" id="live-msg" role="alert"></p>
+      <details class="muted small info">
+        <summary>מה זה אומר?</summary>
+        הקול של הילד עובר בזמן אמת לספק הקול שלנו (ElevenLabs) כדי שמאיה תוכל לענות. השיחה לא מוקלטת ולא נשמרת, ושם הילד לא נשלח.
+        עד 3 דקות ביום ו-30 דקות בחודש. אפשר לכבות בכל רגע.
+      </details>
+    </article>
+
+    <article class="card pilot" id="pilot-card">
+      <h2>קוד פיילוט</h2>
+      <p class="muted">קיבלתם קוד הצטרפות לפיילוט? הזינו אותו כאן לגישה חינמית.</p>
+      <form id="f-pilot" class="row" novalidate>
+        <input name="code" dir="ltr" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="YALLA-XXXXXX" aria-label="קוד פיילוט" required>
+        <button class="primary" type="submit">הפעלה</button>
+      </form>
+      <p class="error" id="pilot-msg" role="alert"></p>
+    </article>
+
+    <article class="card wide" id="plans-card">
+      <h2>מסלולים</h2>
+      <p class="muted" id="plans-closed" hidden>ההרשמה בתשלום תיפתח אחרי תקופת הפיילוט. עד אז לא נחייב אף אחד.</p>
+      <label class="payer" id="payer" hidden>שם מלא לחשבונית<input id="payer-name" type="text" autocomplete="name" maxlength="60" placeholder="שם פרטי ומשפחה"><span class="muted small">עובר רק לחברת הסליקה, לצורך החשבונית. אנחנו לא שומרים אותו.</span></label>
+      <div class="plans" id="plans"></div>
+      <p class="muted small">המחירים כוללים מע"מ. החודשי מתחדש אוטומטית, ואפשר לבטל בכל רגע מהעמוד הזה בלחיצה אחת. השנתי הוא תשלום אחד לשנה, בלי חידוש אוטומטי.</p>
+      <p class="error" id="plans-msg" role="alert"></p>
+    </article>
+
+    <article class="card wide acct">
+      <h2>החשבון</h2>
+      <details>
+        <summary class="danger">מחיקת החשבון</summary>
+        <form id="f-delete" class="stepup" novalidate>
+          <p>המחיקה סופית: מספר הטלפון והמנוי נמחקים מיד, וחיוב עתידי מבוטל.</p>
+          <button class="danger" type="button" id="delete-wa" data-wa hidden>אישור המחיקה בוואטסאפ</button>
+          <div id="delete-wa-box" hidden>
+          <div class="wa" id="wa-delete">
+      <div class="wa-live" hidden>
+        <div class="wa-main">
+          <a class="wa-btn" target="_blank" rel="noopener"><svg class="wa-ico" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3.2A12.7 12.7 0 0 0 5.1 22.5L3.4 28.7l6.4-1.7A12.7 12.7 0 1 0 16 3.2Z" fill="#fff"/><path d="M16 5.5a10.4 10.4 0 0 0-8.7 16.1l.3.5-1 3.5 3.6-1 .5.3A10.4 10.4 0 1 0 16 5.5Zm-4 5.3c.3 0 .6 0 .8.5l1 2.4c.1.3.1.5-.1.8l-.7.9c-.2.2-.2.4 0 .7a8 8 0 0 0 3.800 3.300c.3.2.6.1.8-.1l.9-1.100c.2-.3.5-.3.8-.2l2.300 1.100c.3.2.5.3.5.6 0 .9-.6 2-1.800 2.300-1.900.5-4.900-.6-7.300-2.900-2.300-2.300-3.600-5.100-3.200-7 .2-.8.8-1.300 1.400-1.300Z" fill="#128C4B"/></svg><span>שליחת אישור מחיקה</span></a>
+          <p class="wa-hint">וואטסאפ ייפתח עם הודעה מוכנה, רק לוחצים שלח.</p>
+        </div>
+        <div class="wa-scan"><div class="wa-qr" role="img" aria-label="קוד QR שפותח את וואטסאפ בטלפון"></div><p><b>במחשב או בטאבלט?</b> סרקו עם מצלמת הטלפון.</p></div>
+        <p class="wa-wait" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="wa-wait-t">הדף יתעדכן לבד אחרי השליחה.</span></p>
+      </div>
+      <div class="wa-expired" hidden><p>פג תוקף, נסו שוב.</p><button class="ghost wa-restart" type="button">קוד חדש</button></div>
+      <p class="error wa-msg" role="alert"></p>
+    </div>
+          <button class="link" type="button" id="delete-wa-cancel">ביטול</button>
+          </div>
+          <button class="ghost" type="button" id="delete-send">שלחו לי קוד ב-SMS לאישור המחיקה</button>
+          <div id="delete-step" hidden>
+            <p class="sent">שלחנו קוד אל <bdi class="my-phone" dir="ltr"></bdi></p>
+            <div class="row">
+              <input class="code sm" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" dir="ltr" placeholder="••••••" aria-label="קוד מה-SMS לאישור המחיקה" required>
+              <button class="danger" type="submit">למחוק לצמיתות</button>
+            </div>
+          </div>
+          <p class="error" id="delete-msg" role="alert"></p>
+        </form>
+      </details>
+      <button class="ghost" id="logout">יציאה</button>
+    </article>
+
+    <footer class="small"><a href="../help/">עזרה ושאלות</a> · <a href="terms.html" target="_blank" rel="noopener">תנאי השימוש והמנוי</a> · <a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a></footer>
+  </section>
+
+</main>
+</body>
+</html>

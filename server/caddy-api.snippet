@@ -1,0 +1,18 @@
+# Inside the kids site block.
+# 1) Provider webhooks must reach the API WITHOUT basic auth (they are verified by signature). Put this
+#    BEFORE the basicauth directive / outside the protected route:
+@billing_webhook path /api/billing/webhook/* /preview/api/billing/webhook/* /api/whatsapp/webhook /preview/api/whatsapp/webhook
+handle @billing_webhook {
+	reverse_proxy 127.0.0.1:8090
+}
+# 2) Everything else stays inside the basic-auth part during the pilot, BEFORE file_server:
+handle /api/* {
+	reverse_proxy 127.0.0.1:8090
+}
+handle /preview/api/* {
+	reverse_proxy 127.0.0.1:8090
+}
+# 3) The parents' area is static: ship account/ into the web root (/account/ and /preview/account/).
+# The admin port 8091 is NEVER proxied.
+# 4) Access log retention to match the privacy notice (30 days):
+#    log { output file /var/log/caddy/kids.log { roll_size 20MiB roll_keep 5 roll_keep_for 720h } }

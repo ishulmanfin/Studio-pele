@@ -1,2 +1,2 @@
 { "name": "studio-pele", "version": "1.0.0", "private": true, "type": "module",
-  "scripts": { "start": "node server.js", "test": "node tests/critical-path.mjs" } }
+  "scripts": { "start": "node server.js", "test": "node tests/critical-path.mjs", "test:api": "node --test server/test/api.test.mjs server/test/support.test.mjs", "api": "node server/yalla-api.mjs" } }
