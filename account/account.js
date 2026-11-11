@@ -1,11 +1,11 @@
-// YALLA KIDS parents' area: gate, phone + SMS-code sign-in, subscription, live-talk consent. No dependencies, no trackers.
+// YALLA KIDS parents' area: gate, WhatsApp sign-in (SMS code as the fallback), subscription, live-talk consent. No dependencies, no trackers.
 const BASE = location.pathname.startsWith('/preview/') ? '/preview' : '';
 const $ = (id) => document.getElementById(id);
 const show = (id) => { for (const s of ['gate', 'auth', 'dash']) $(s).hidden = s !== id; };
 
 const ERR = {
   bad_phone: 'מספר הטלפון לא נראה תקין.', bad_code: 'הקוד לא נכון.', code_expired: 'הקוד פג תוקף. שלחו קוד חדש.', consent_required: 'צריך לסמן את שתי ההצהרות.',
-  too_many: 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.', sms_unavailable: 'שליחת ה-SMS לא זמינה כרגע. נסו שוב מאוחר יותר.', already_subscribed: 'יש לכם כבר מנוי פעיל.', billing_closed: 'התשלום עוד לא נפתח.',
+  too_many: 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.', wa_unavailable: 'וואטסאפ לא זמין כרגע. אפשר לקבל קוד ב-SMS.', sms_unavailable: 'שליחת ה-SMS לא זמינה כרגע. נסו שוב מאוחר יותר.', already_subscribed: 'יש לכם כבר מנוי פעיל.', billing_closed: 'התשלום עוד לא נפתח.',
   provider_unavailable: 'שירות התשלום לא זמין כרגע. נסו שוב מאוחר יותר.', cancel_failed: 'הביטול לא הצליח מול חברת הסליקה. נסו שוב או כתבו לנו.',
   too_many_signups: 'נרשמו יותר מדי חשבונות מהרשת הזו. אפשר לנסות שוב בעוד שעה.', no_plan: 'צריך קוד פיילוט או מסלול כדי להפעיל שיחה חיה.',
   nothing_to_cancel: 'אין מנוי פעיל לביטול.', signup_closed: 'ההרשמה סגורה כרגע.', login_required: 'צריך להתחבר מחדש.', bad_origin: 'הבקשה נחסמה. רעננו את העמוד.',
@@ -23,7 +23,7 @@ async function api(path, body) {
 // Disable a form's buttons while a request runs, show its error in place.
 async function busy(form, msgEl, fn, errs = {}) {
   const btns = form.querySelectorAll('button'); btns.forEach((b) => (b.disabled = true)); msgEl.textContent = '';
-  try { await fn(); } catch (e) { msgEl.textContent = e.code === 'too_many' && e.retryAfterSec <= 120 ? `אפשר לבקש קוד חדש בעוד ${e.retryAfterSec} שניות.` : errs[e.code] || errText(e.code); if (e.status === 401 && e.code === 'login_required') show('auth'); }
+  try { await fn(); } catch (e) { msgEl.textContent = e.code === 'too_many' && e.retryAfterSec <= 120 ? `אפשר לבקש קוד חדש בעוד ${e.retryAfterSec} שניות.` : errs[e.code] || errText(e.code); if (e.status === 401 && e.code === 'login_required') enterAuth(); }
   finally { btns.forEach((b) => (b.disabled = !!b.dataset.cool)); }
 }
 
@@ -81,7 +81,8 @@ function cooldown(btn, sec) {
 const maskPhone = (p) => { if (String(p).includes('*')) return p; let d = String(p || '').replace(/\D/g, ''); if (d.startsWith('972')) d = '0' + d.slice(3); return d.length >= 9 ? `${d.slice(0, 3)}-***-${d.slice(-4)}` : '***'; };
 let phone = '';
 function authStep(step) {
-  $('f-phone').hidden = step !== 'phone'; $('f-code').hidden = step !== 'code';
+  $('f-phone').hidden = step !== 'phone'; $('f-code').hidden = step !== 'code'; $('wa-login').hidden = step !== 'wa'; $('to-sms').hidden = step !== 'wa';
+  if (step !== 'wa') loginWa.stop();
   $('auth-msg').textContent = ''; $('code-msg').textContent = '';
   if (step === 'phone') { $('f-code').reset(); $('consent').hidden = true; }
 }
@@ -109,6 +110,66 @@ function verifyCode() {
     if (needConsent) notice('החשבון נוצר. אם קיבלתם קוד פיילוט, הזינו אותו למטה.');
   });
 }
+// ---------- WhatsApp: the parent sends us a ready-made message with a one-time code; we wait for it ----------
+// One block of markup (button + QR + waiting line) serves sign-in, live-talk approval and account deletion.
+// `attempt(session)` asks the server; it returns true when done and false while the message has not arrived yet.
+let waAvail = null;
+function drawQr(el, link) {
+  el.replaceChildren(); if (typeof window.qrcode !== 'function') return;
+  try { const q = window.qrcode(0, 'M'); q.addData(link); q.make(); el.innerHTML = q.createSvgTag({ cellSize: 5, margin: 2, scalable: true }); } catch {}
+}
+function waFlow(root, startPath, attempt) {
+  const q = (c) => root.querySelector(c); let timer = 0, run = 0, asking = false;
+  const stop = () => { clearTimeout(timer); run++; };
+  const expire = () => { stop(); q('.wa-live').hidden = true; q('.wa-expired').hidden = false; };
+  let tick = () => {};
+  async function begin() {
+    stop(); const my = run; q('.wa-expired').hidden = true; q('.wa-msg').textContent = ''; root.classList.remove('sent');
+    q('.wa-wait-t').textContent = 'הדף יתעדכן לבד אחרי השליחה.';
+    let s; try { s = await api(startPath, {}); } catch (e) { if (my === run && e.code !== 'wa_unavailable') q('.wa-msg').textContent = errText(e.code); return false; }
+    if (my !== run) return false;
+    q('.wa-btn').href = s.waLink; drawQr(q('.wa-qr'), s.waLink); q('.wa-live').hidden = false;
+    const until = Date.now() + (s.expiresInSec || 600) * 1000;
+    tick = async () => {
+      if (my !== run || asking) return; clearTimeout(timer);
+      if (Date.now() > until) return expire();
+      if (document.visibilityState === 'visible' && root.offsetParent) {
+        asking = true;
+        try { if (await attempt(s)) { if (my === run) stop(); return; } }
+        catch (e) { if (my !== run) return; if (e.code === 'code_expired' || e.status === 404) return expire(); q('.wa-msg').textContent = errText(e.code); }
+        finally { asking = false; }
+      }
+      if (my === run) timer = setTimeout(tick, 2000);
+    };
+    timer = setTimeout(tick, 2000); return true;
+  }
+  q('.wa-btn').addEventListener('click', () => { root.classList.add('sent'); q('.wa-wait-t').textContent = 'מחכים להודעה שלכם…'; });
+  q('.wa-restart').addEventListener('click', begin);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(); });   // back from WhatsApp: check right away
+  return { begin, stop, poke: () => tick() };
+}
+let waConsent = false;
+const loginWa = waFlow($('wa-login'), '/auth/wa/start', async (s) => {
+  const f = $('f-wa-consent'); if (!f.hidden && !waConsent) return false;   // waiting for the two ticks
+  const body = { code: s.code, secret: s.secret }; if (waConsent) Object.assign(body, { parentAdult: true, acceptTerms: true });
+  let j; try { j = await api('/auth/wa/finish', body); }
+  catch (e) { if (e.code === 'consent_required') { waConsent = false; if (f.hidden) { f.hidden = false; $('wa-login').classList.add('got'); f.parentAdult.focus(); } return false; } throw e; }
+  if (j.pending) return false;
+  const isNew = waConsent; me = j; resetWaLogin(); await loadDash();
+  if (isNew) notice('החשבון נוצר. אם קיבלתם קוד פיילוט, הזינו אותו למטה.');
+  return true;
+});
+function resetWaLogin() { waConsent = false; $('f-wa-consent').reset(); $('f-wa-consent').hidden = true; $('wa-login').classList.remove('got'); }
+// Show the sign-in screen: WhatsApp first when the server has it, otherwise (or when it fails) the SMS flow, quietly.
+async function enterAuth(msg = '') {
+  if (waAvail === null) { try { waAvail = !!(await api('/plans')).whatsapp; } catch { waAvail = false; } }
+  document.querySelectorAll('[data-wa]').forEach((el) => (el.hidden = !waAvail));
+  show('auth'); resetWaLogin();
+  if (waAvail) { authStep('wa'); if (!(await loginWa.begin())) { waAvail = false; document.querySelectorAll('[data-wa]').forEach((el) => (el.hidden = true)); authStep('phone'); } }
+  else authStep('phone');
+  $('auth-msg').textContent = msg; if (msg && waAvail) $('wa-login').querySelector('.wa-msg').textContent = msg;
+}
+
 // Step-up for sensitive actions: a fresh code to the account's own phone.
 async function sendConfirm(form, msgEl, resendBtn) {
   let ok = false;
@@ -157,14 +218,15 @@ function render() {
 function notice(text) { $('notice').textContent = text; $('notice').hidden = !text; }
 
 async function loadDash() {
-  [me, { plans }] = await Promise.all([api('/account/me'), api('/plans')]);
-  render(); show('dash');
+  let plansView; [me, plansView] = await Promise.all([api('/account/me'), api('/plans')]); plans = plansView.plans;
+  if (waAvail === null) waAvail = !!plansView.whatsapp; document.querySelectorAll('[data-wa]').forEach((el) => (el.hidden = !waAvail));
+  loginWa.stop(); render(); show('dash');
 }
 
 async function start() {
   if (!gateOpen()) { show('gate'); newQuestion(); if (Date.now() < lockedUntil) lock(); return; }
   try { await loadDash(); if (new URLSearchParams(location.search).get('paid')) notice('תודה! התשלום התקבל והמנוי פעיל.'); }
-  catch (e) { show('auth'); authStep('phone'); if (e.status !== 401) $('auth-msg').textContent = errText(e.code); }
+  catch (e) { await enterAuth(e.status !== 401 ? errText(e.code) : ''); }
 }
 
 function wire() {
@@ -177,14 +239,31 @@ function wire() {
   $('consent').addEventListener('change', () => { $('code-msg').textContent = ''; });
   $('resend').onclick = () => { $('f-code').code.value = ''; sendLoginCode($('f-code'), $('code-msg')); };
   $('other-phone').onclick = () => { authStep('phone'); $('f-phone').phone.focus(); };
-  // Switching live talk ON asks for an SMS code to the parent's phone; switching it OFF never does.
+  $('to-sms').onclick = () => { authStep('phone'); $('f-phone').phone.focus(); };
+  $('to-wa').onclick = () => enterAuth();
+  $('f-wa-consent').addEventListener('submit', (e) => {
+    e.preventDefault(); const f = e.target, m = $('wa-login').querySelector('.wa-msg');
+    if (!(f.parentAdult.checked && f.acceptTerms.checked)) { m.textContent = ERR.consent_required; return; }
+    m.textContent = ''; waConsent = true; loginWa.poke();
+  });
+  $('f-wa-consent').addEventListener('change', () => { $('wa-login').querySelector('.wa-msg').textContent = ''; });
+  // Switching live talk ON asks the parent to confirm from their phone (WhatsApp first, SMS code as a fallback); switching it OFF never does.
+  const liveWa = waFlow($('wa-live'), '/account/confirm-wa', async (s) => {
+    try { me = await api('/account/live-talk', { enabled: true, waCode: s.code, waSecret: s.secret }); } catch (e) { if (e.code === 'not_confirmed_yet') return false; throw e; }
+    $('live-wa-box').hidden = true; render(); return true;
+  });
+  const liveSms = async () => { const f = $('f-live'); f.reset(); f.hidden = false; if (await sendConfirm(f, $('live-msg'), $('live-resend'))) f.code.focus(); else f.hidden = true; };
+  const closeLiveWa = () => { liveWa.stop(); $('live-wa-box').hidden = true; };
+  $('live-wa-cancel').onclick = closeLiveWa;
+  $('live-wa-sms').onclick = () => { closeLiveWa(); liveSms(); };
   $('live-toggle').addEventListener('change', async (e) => {
     $('live-msg').textContent = '';
     if (e.target.checked) {
-      e.target.checked = false; const f = $('f-live'); f.reset(); f.hidden = false;
-      if (await sendConfirm(f, $('live-msg'), $('live-resend'))) f.code.focus(); else f.hidden = true;
-      return;
+      e.target.checked = false; $('f-live').hidden = true;
+      if (waAvail) { $('live-wa-box').hidden = false; if (await liveWa.begin()) return; $('live-wa-box').hidden = true; }
+      await liveSms(); return;
     }
+    closeLiveWa();
     e.target.disabled = true;
     api('/account/live-talk', { enabled: false }).then((j) => { me = j; render(); }).catch(() => { e.target.checked = true; }).finally(() => { e.target.disabled = false; });
   });
@@ -201,12 +280,20 @@ function wire() {
   $('cancel-no').onclick = () => { $('cancel-confirm').hidden = true; $('cancel-open').hidden = false; };
   $('cancel-yes').onclick = () => busy($('cancel-confirm'), $('sub-detail'), async () => { me = await api('/billing/cancel', {}); render(); notice('המנוי בוטל. לא יהיו חיובים נוספים.'); });
   $('f-delete').code.addEventListener('input', (e) => { e.target.value = digits(e.target.value); });
-  $('delete-send').onclick = async () => { if (await sendConfirm($('f-delete'), $('delete-msg'), $('delete-send'))) { $('delete-step').hidden = false; $('f-delete').code.focus(); } };
+  const delWa = waFlow($('wa-delete'), '/account/confirm-wa', async (s) => {
+    try { await api('/account/delete', { waCode: s.code, waSecret: s.secret }); } catch (e) { if (e.code === 'not_confirmed_yet') return false; throw e; }
+    deleted(); return true;
+  });
+  const closeDelWa = () => { delWa.stop(); $('delete-wa-box').hidden = true; $('delete-wa').hidden = !waAvail; };
+  const deleted = () => { me = null; closeDelWa(); $('f-delete').reset(); $('delete-step').hidden = true; $('f-delete').closest('details').open = false; enterAuth('החשבון נמחק.'); };
+  $('delete-wa').onclick = async () => { $('delete-msg').textContent = ''; $('delete-wa').hidden = true; $('delete-wa-box').hidden = false; if (!(await delWa.begin())) closeDelWa(); };
+  $('delete-wa-cancel').onclick = closeDelWa;
+  $('delete-send').onclick = async () => { closeDelWa(); if (await sendConfirm($('f-delete'), $('delete-msg'), $('delete-send'))) { $('delete-step').hidden = false; $('f-delete').code.focus(); } };
   $('f-delete').addEventListener('submit', (e) => {
     e.preventDefault(); const f = e.target;
-    busy(f, $('delete-msg'), async () => { await api('/account/delete', { code: f.code.value }); me = null; f.reset(); $('delete-step').hidden = true; show('auth'); authStep('phone'); $('auth-msg').textContent = 'החשבון נמחק.'; });
+    busy(f, $('delete-msg'), async () => { await api('/account/delete', { code: f.code.value }); deleted(); });
   });
-  $('logout').onclick = async () => { try { await api('/account/logout', {}); } catch {} me = null; show('auth'); authStep('phone'); };
+  $('logout').onclick = async () => { try { await api('/account/logout', {}); } catch {} me = null; closeLiveWa(); closeDelWa(); enterAuth(); };
 }
 
 wire(); start();
